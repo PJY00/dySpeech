@@ -1,0 +1,19 @@
+node_modules/
+.DS_Store
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Audio data (recordings must never be committed)
+data/
+*.wav
+*.flac
