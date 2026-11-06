@@ -34,10 +34,11 @@ UPLOAD_URL_TTL = timedelta(minutes=15)
 RECORDING_URL_TTL = timedelta(minutes=10)
 EXAMPLE_URL_BASE = "https://s3.example.com/example"
 
-FIRST_SESSION_ID = UUID("0b6f7a52-8c1e-4d3a-9f2b-6a1c5e7d9f01")
+EXAMPLE_USER_ID = UUID("3f9b2c1e-7a4d-4e8b-9c2f-1a6d5e8b7c40")
+FIRST_SESSION_ID = UUID("8c41e7d2-5b3a-4f19-a6e2-9d0c7b1f3a58")
 SECOND_SESSION_ID = UUID("5d2e9c47-1a3b-4f6e-8d7c-2b4a6e8f0a12")
-FIRST_STARTED_AT = datetime(2026, 11, 20, 0, 15, tzinfo=UTC)
-SECOND_STARTED_AT = datetime(2026, 11, 27, 0, 15, tzinfo=UTC)
+FIRST_STARTED_AT = datetime(2026, 11, 20, 9, 15, tzinfo=UTC)
+SECOND_STARTED_AT = datetime(2026, 11, 27, 9, 15, tzinfo=UTC)
 
 # 한 회차의 서버 값 예시
 SESSION_VALUES = {
@@ -114,10 +115,10 @@ def complete(session_id: UUID, body: CompleteIn) -> CompleteAccepted:
 def session_detail(session_id: UUID) -> SessionDetail:
     return SessionDetail(
         id=session_id,
-        user_id=UUID("9a7c3e15-6b2d-4f8a-b1c4-3d5e7f9a1b23"),
+        user_id=EXAMPLE_USER_ID,
         purpose=Purpose.training,
         started_at=FIRST_STARTED_AT,
-        ended_at=FIRST_STARTED_AT + timedelta(minutes=25),
+        ended_at=FIRST_STARTED_AT + timedelta(minutes=26),
         device_model="SM-S921N",
         os_version="Android 16",
         app_version="0.1.0",
