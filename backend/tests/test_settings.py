@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import pytest
 
-from app.settings import Settings
+from app.settings import OPERATING_VARIABLES, Settings, missing_operating_variables, require_operating_settings
 
 VARIABLES = [
     "DATABASE_URL",
@@ -74,3 +76,43 @@ def test_secret_values_are_hidden(monkeypatch):
         assert getattr(settings, name.lower()).get_secret_value() == f"secret-value-of-{name}"
         for output in outputs:
             assert f"secret-value-of-{name}" not in output
+
+
+OPERATING_VALUES = {
+    "DATABASE_URL": "postgresql://user:secret-password@db.example.com:5432/postgres",
+    "AWS_REGION": "ap-northeast-2",
+    "AWS_ACCESS_KEY_ID": "AKIAEXAMPLE",
+    "AWS_SECRET_ACCESS_KEY": "secret-aws-key",
+    "S3_BUCKET": "dyspeech-recordings",
+    "APP_API_KEY": "secret-app-key",
+}
+
+
+def test_require_operating_settings_passes_when_all_are_set(monkeypatch):
+    for name, value in OPERATING_VALUES.items():
+        monkeypatch.setenv(name, value)
+
+    settings = Settings(_env_file=None)
+
+    assert missing_operating_variables(settings) == []
+    require_operating_settings(settings)
+
+
+def test_require_operating_settings_names_missing_ones_without_values(monkeypatch):
+    for name, value in OPERATING_VALUES.items():
+        if name not in ("AWS_REGION", "S3_BUCKET"):
+            monkeypatch.setenv(name, value)
+
+    with pytest.raises(RuntimeError) as caught:
+        require_operating_settings(Settings(_env_file=None))
+
+    message = str(caught.value)
+    assert "AWS_REGION, S3_BUCKET" in message
+    assert not any(value in message for value in OPERATING_VALUES.values())
+
+
+def test_every_operating_variable_is_in_env_example():
+    example = (Path(__file__).resolve().parents[1] / ".env.example").read_text(encoding="utf-8")
+
+    for name in OPERATING_VARIABLES:
+        assert f"\n{name}=" in example
