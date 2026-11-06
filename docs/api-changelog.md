@@ -39,7 +39,7 @@ API 명세([`api.md`](api.md), [`openapi.json`](openapi.json))가 바뀔 때마�
 - 오류 형식: `{"error": {"code", "message"}}`. 422는 `fields[]`에 문제 필드의 경로와 이유, 409(빠진 녹음)는 `missing_recording_ids`를 담는다.
 - 녹음 종류별 필수 필드: `mpt_trial`은 `trial_no`, `eval_sentence`는 `sentence_id`, `game`은 `game_run_id`, `agc_tone`은 `agc_signal`(`agc_steps` / `agc_hold` / `agc_toggle`). 다른 종류의 필드를 넣으면 422다.
 - 자동 게인 조절 시험: `agc_test` 세션 하나에 시험 소리 3개를 녹음 3개로 보낸다.
-- 평가 전용 문장: `sentence_id`는 `s1`
+- 평가 전용 문장: `sentence_id`는 서버 설정에 있는 값(지금은 `s1`)만 받는다. 다른 값은 422다. 서버가 정답 음절 수를 알아야 말속도 지표를 계산할 수 있기 때문이다.
 - 지표: 진전도 지표 8개와 보조 지표 3개(`sustained_level`, `f0_median`, `noise_floor`)
 - 진전도: 진전도 지표 8개를 항상 같은 순서로 넣는다. 값이 없으면 `status`는 `no_data`다.
 - 게임 기록: 판 성공률은 `success_rate_pct`(0~100)다.

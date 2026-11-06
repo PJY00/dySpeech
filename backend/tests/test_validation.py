@@ -4,6 +4,8 @@ import uuid
 
 import pytest
 
+from app.config.sentences import EVAL_SENTENCES
+
 PATH_IDS = {"user_id": str(uuid.uuid4()), "session_id": str(uuid.uuid4()), "recording_id": str(uuid.uuid4())}
 
 ENDPOINTS = {
@@ -177,6 +179,25 @@ KIND_RULES = [
     ("agc_tone", {}, "agc_signal"),
     ("noise_floor", {"agc_signal": "agc_steps"}, "agc_signal"),
 ]
+
+
+@pytest.mark.parametrize("sentence_id", EVAL_SENTENCES)
+def test_eval_sentence_accepts_configured_sentence_ids(api_client, sentence_id):
+    body = valid_bodies()["upload_urls"]
+    body["recordings"][0] |= {"kind": "eval_sentence", "sentence_id": sentence_id}
+
+    assert send(api_client, "upload_urls", body).status_code == 200
+
+
+@pytest.mark.parametrize("sentence_id", ["s2", "S1", ""])
+def test_eval_sentence_rejects_unknown_sentence_id(api_client, sentence_id):
+    body = valid_bodies()["upload_urls"]
+    body["recordings"][0] |= {"kind": "eval_sentence", "sentence_id": sentence_id}
+
+    response = send(api_client, "upload_urls", body)
+
+    assert error_paths(response) == ["body.recordings[0].sentence_id"]
+    assert "s1" in response.json()["error"]["fields"][0]["reason"]
 
 
 @pytest.mark.parametrize(("kind", "extra", "field"), KIND_RULES, ids=[f"{k}-{f}" for k, _, f in KIND_RULES])

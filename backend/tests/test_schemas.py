@@ -97,6 +97,7 @@ def test_accepts_each_recording_kind(fields):
         {"kind": "noise_floor", "agc_signal": "agc_steps"},
         {"kind": "mpt_trial", "trial_no": 1, "sentence_id": "s1"},
         {"kind": "mpt_trial", "trial_no": 0},
+        {"kind": "eval_sentence", "sentence_id": "s2"},
         {"kind": "unknown"},
         {"sample_rate": 22050},
         {"duration_s": 0},

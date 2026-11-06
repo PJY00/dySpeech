@@ -1,11 +1,17 @@
+from enum import StrEnum
 from typing import Literal, Self
 
 from pydantic import UUID4, Field, FiniteFloat, model_validator
 from pydantic_core import PydanticCustomError
 
+from app.config.sentences import EVAL_SENTENCES
 from app.schemas.common import AgcSignal, ContractModel, RecordingKind, SampleRate, UtcDatetime, require_unique
 
 MAX_DURATION_S = 120
+
+# 서버가 정답 음절 수를 알아야 말속도 지표를 계산할 수 있으므로, 서버 설정에 있는 문장 ID만 받는다.
+SentenceId = StrEnum("SentenceId", {key: key for key in EVAL_SENTENCES})
+SentenceId.__doc__ = "평가 전용 문장 ID. 서버 설정에 있는 값만 받는다."
 
 # 녹음 종류마다 꼭 있어야 하는 필드. 다른 종류의 필드는 넣지 않는다.
 FIELD_BY_KIND = {
@@ -20,7 +26,7 @@ class RecordingIn(ContractModel):
     recording_id: UUID4
     kind: RecordingKind
     trial_no: int | None = Field(default=None, ge=1)
-    sentence_id: str | None = Field(default=None, min_length=1, max_length=64)
+    sentence_id: SentenceId | None = None
     game_run_id: UUID4 | None = None
     agc_signal: AgcSignal | None = None
     duration_s: FiniteFloat = Field(gt=0, le=MAX_DURATION_S)

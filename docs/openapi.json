@@ -1206,15 +1206,12 @@
           "sentence_id": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 64,
-                "minLength": 1
+                "$ref": "#/components/schemas/SentenceId"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Sentence Id"
+            ]
           },
           "game_run_id": {
             "anyOf": [
@@ -1307,6 +1304,14 @@
           "expires_at"
         ],
         "title": "RecordingUrl"
+      },
+      "SentenceId": {
+        "type": "string",
+        "enum": [
+          "s1"
+        ],
+        "title": "SentenceId",
+        "description": "평가 전용 문장 ID. 서버 설정에 있는 값만 받는다."
       },
       "SeriesPoint": {
         "properties": {

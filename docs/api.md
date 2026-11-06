@@ -277,7 +277,7 @@
 | `recording_id` | UUID v4 | 앱이 만든 녹음 ID |
 | `kind` | 5.2의 종류 | 녹음 종류 |
 | `trial_no` | 정수(1부터) | `mpt_trial`에만 넣는다 |
-| `sentence_id` | 문자열(1~64자) | `eval_sentence`에만 넣는다 |
+| `sentence_id` | `s1` | `eval_sentence`에만 넣는다. 서버 설정에 있는 평가 전용 문장 ID만 받는다 |
 | `game_run_id` | UUID v4 | `game`에만 넣는다. complete의 `game_runs`에 같은 ID가 있어야 한다 |
 | `agc_signal` | `agc_steps` / `agc_hold` / `agc_toggle` | `agc_tone`에만 넣는다. 재생한 시험 소리(9.3) |
 | `duration_s` | 숫자(0 초과, 120 이하) | 녹음 길이(초) |
@@ -305,6 +305,9 @@
 ```
 
 평가 전용 문장의 `sentence_id`는 `s1`이다([`metrics-spec.md`](metrics-spec.md) 6장).
+
+- 서버는 문장마다 정답 음절 수를 알아야 말속도 지표를 계산할 수 있다. 그래서 서버 설정에 없는 문장 ID는 422로 거부한다. 경로는 `body.recordings[번호].sentence_id`다.
+- 문장이 늘면 `api-changelog.md`에 적는다.
 
 응답 200. 요청 순서대로 한 항목씩 나온다.
 
@@ -493,7 +496,7 @@ complete 뒤 `status`가 `done`이 될 때까지 가끔 확인한다. 서버 계
 | `calibration_glide` | 첫 회차 1개. 낮은 소리에서 높은 소리로 미끄러지듯 "아" | 없음 |
 | `noise_floor` | 매 회차 1개. 조용히 약 2초 | 없음 |
 | `mpt_trial` | 매 회차 2~3개. 편한 크기로 "아"를 최대한 길게 | `trial_no`(1부터) |
-| `eval_sentence` | 매 회차 1개. 평가 전용 문장 낭독 | `sentence_id` |
+| `eval_sentence` | 매 회차 1개. 평가 전용 문장 낭독 | `sentence_id`(지금은 `s1`만) |
 | `game` | 선택. 게임 중 녹음 | `game_run_id` |
 | `agc_tone` | `agc_test` 세션 전용. 시험 소리 3개를 재생하며 하나씩 녹음(9.3) | `agc_signal` |
 
