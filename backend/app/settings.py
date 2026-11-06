@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic import SecretStr
@@ -29,3 +30,9 @@ class Settings(BaseSettings):
 
     # 개발 변수
     test_database_url: SecretStr | None = None
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """요청마다 .env를 다시 읽지 않도록 한 번 읽은 값을 쓴다. 테스트는 FastAPI 의존성 덮어쓰기로 바꾼다."""
+    return Settings()

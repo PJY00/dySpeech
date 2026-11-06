@@ -1,9 +1,32 @@
 import pytest
+from fastapi.testclient import TestClient
 from psycopg.conninfo import conninfo_to_dict
 
-from app.settings import Settings
+from app.main import app
+from app.settings import Settings, get_settings
 
 TEST_DATABASE_NAME = "dyspeech_test"
+TEST_APP_KEY = "test-app-key"
+
+
+def make_client(server_key: str | None, request_key: str | None) -> TestClient:
+    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, app_api_key=server_key)
+    headers = {"X-App-Key": request_key} if request_key is not None else {}
+    return TestClient(app, headers=headers)
+
+
+@pytest.fixture
+def api_client():
+    """서버와 요청의 앱 키가 맞는 클라이언트."""
+    yield make_client(TEST_APP_KEY, TEST_APP_KEY)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_factory():
+    """서버 키와 요청 키를 골라 만드는 클라이언트."""
+    yield make_client
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="session")
