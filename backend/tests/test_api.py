@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import pytest
@@ -125,6 +126,36 @@ def test_v1_needs_matching_app_key(client_factory, server_key, request_key):
 
     assert response.status_code == 401
     assert response.json() == {"error": {"code": "INVALID_APP_KEY", "message": "X-App-Key가 없거나 맞지 않습니다"}}
+
+
+@pytest.mark.parametrize(
+    ("server_key", "request_key", "reason"),
+    [
+        (None, "request-key", "서버 키 없음"),
+        ("server-key", None, "요청 키 없음"),
+        ("server-key", "wrong-key", "키 불일치"),
+    ],
+)
+def test_auth_failure_reason_is_logged_without_keys_or_ids(client_factory, caplog, server_key, request_key, reason):
+    client = client_factory(server_key, request_key)
+
+    with caplog.at_level(logging.WARNING, logger="app.api.auth"):
+        client.get(f"/v1/users/{USER_ID}/history")
+
+    messages = [record.getMessage() for record in caplog.records if record.name == "app.api.auth"]
+    assert len(messages) == 1
+    assert reason in messages[0]
+    assert messages[0].endswith("GET /v1/users/{user_id}/history")
+    for value in (server_key, request_key, USER_ID):
+        if value:
+            assert value not in caplog.text
+
+
+def test_successful_request_logs_nothing(api_client, caplog):
+    with caplog.at_level(logging.WARNING, logger="app.api.auth"):
+        api_client.get("/v1/metrics")
+
+    assert not [record for record in caplog.records if record.name == "app.api.auth"]
 
 
 def test_missing_key_is_rejected_before_body_validation(client_factory):
