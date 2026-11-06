@@ -19,6 +19,8 @@ API 명세([`api.md`](api.md), [`openapi.json`](openapi.json))가 바뀔 때마�
 
 - **complete에 422 `INVALID_RECORDING_FORMAT` 추가**: 올라온 WAV가 모노·16비트 PCM·허용 샘플레이트가 아니면, 녹음 ID와 이유를 돌려준다. 응답 모양은 [`api.md` 3.4](api.md#34-다음-단계부터-생기는-응답-wav-규격-422)로 확정했고, 빠진 녹음 검사(409)를 먼저 한다.
   - 앱 영향: complete가 422를 돌려줄 수 있다. `invalid_recordings`의 녹음만 다시 만들어 올리고 complete를 다시 보낸다.
+- **요청 크기 상한 413 `PAYLOAD_TOO_LARGE` 추가**: 모든 요청의 본문이 1 MB(1,048,576바이트)를 넘으면 413을 돌려준다. 응답 모양은 [`api.md` 3.5](api.md#35-다음-단계부터-생기는-응답-요청-크기-상한-413)에 있다.
+  - 앱 영향: `client_meta`나 게임 기록의 `params`·`result`가 크면 413이 올 수 있다. 값을 줄여 다시 보낸다.
 - **실제 동작 시작**: 저장, 404·409 응답, 실제 업로드 URL. 응답 형식은 바뀌지 않는다.
 
 ---
@@ -37,6 +39,7 @@ API 명세([`api.md`](api.md), [`openapi.json`](openapi.json))가 바뀔 때마�
   - API 명세에 없는 필드는 422, 부가 정보는 `client_meta`
   - 같은 요청은 같은 결과
 - 오류 형식: `{"error": {"code", "message"}}`. 422는 `fields[]`에 문제 필드의 경로와 이유, 409(빠진 녹음)는 `missing_recording_ids`를 담는다.
+- 다음 단계부터 생기는 응답(서버 구현 전이지만 명세에 미리 포함): complete의 WAV 규격 422 `INVALID_RECORDING_FORMAT`, 모든 요청의 본문 크기 413 `PAYLOAD_TOO_LARGE`(1 MB)
 - 녹음 종류별 필수 필드: `mpt_trial`은 `trial_no`, `eval_sentence`는 `sentence_id`, `game`은 `game_run_id`, `agc_tone`은 `agc_signal`(`agc_steps` / `agc_hold` / `agc_toggle`). 다른 종류의 필드를 넣으면 422다.
 - 자동 게인 조절 시험: `agc_test` 세션 하나에 시험 소리 3개를 녹음 3개로 보낸다.
 - 평가 전용 문장: `sentence_id`는 서버 설정에 있는 값(지금은 `s1`)만 받는다. 다른 값은 422다. 서버가 정답 음절 수를 알아야 말속도 지표를 계산할 수 있기 때문이다.
