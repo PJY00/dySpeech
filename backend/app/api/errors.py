@@ -35,7 +35,7 @@ CODE_BY_STATUS = {404: ErrorCode.not_found, 405: ErrorCode.method_not_allowed}
 
 
 class ApiError(Exception):
-    """계약의 오류 형식으로 응답할 예외."""
+    """API 명세의 오류 형식으로 응답할 예외."""
 
     def __init__(self, status_code: int, code: ErrorCode, message: str) -> None:
         super().__init__(message)
@@ -49,7 +49,7 @@ def error_doc(description: str, model: type[ContractModel] = ErrorResponse) -> d
     return {"model": model, "description": description}
 
 
-INVALID_REQUEST = {422: error_doc("요청이 계약과 다름. fields에 문제 필드의 경로와 이유", ValidationErrorResponse)}
+INVALID_REQUEST = {422: error_doc("요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유", ValidationErrorResponse)}
 
 
 def field_path(error: dict[str, Any]) -> str:
@@ -86,7 +86,7 @@ def field_error(error: dict[str, Any]) -> FieldError:
 
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     fields = [field_error(error) for error in exc.errors()]
-    detail = ValidationErrorDetail(code=ErrorCode.validation_error, message="요청이 계약과 다릅니다", fields=fields)
+    detail = ValidationErrorDetail(code=ErrorCode.validation_error, message="요청이 API 명세와 다릅니다", fields=fields)
     return JSONResponse(status_code=422, content=ValidationErrorResponse(error=detail).model_dump(mode="json"))
 
 

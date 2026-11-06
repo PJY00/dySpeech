@@ -4,7 +4,7 @@ backend 폴더에서 실행한다.
     python -m tools.export_openapi          파일을 새로 쓴다
     python -m tools.export_openapi --check  파일이 코드와 같은지만 확인한다(다르면 종료 코드 1)
 
-계약이 바뀌면 이 파일의 diff로 드러난다. 테스트도 파일이 코드와 같은지 확인한다.
+API 명세가 바뀌면 이 파일의 diff로 드러난다. 테스트도 파일이 코드와 같은지 확인한다.
 """
 
 import argparse

@@ -4,7 +4,7 @@ from app.api import metrics, recordings, sessions, users
 from app.api.auth import require_app_key
 from app.api.errors import error_doc, register_error_handlers
 
-# OpenAPI 문서의 info.version. 계약이 바뀌면 올리고 api-changelog에 적는다.
+# OpenAPI 문서의 info.version. API 명세가 바뀌면 올리고 api-changelog에 적는다.
 API_VERSION = "0.1.0"
 
 router = APIRouter(

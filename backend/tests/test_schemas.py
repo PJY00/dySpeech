@@ -100,7 +100,7 @@ def test_accepts_each_recording_kind(fields):
         {"duration_s": 120.5},
         {"size_bytes": 0},
         {"recording_id": str(uuid.uuid1())},
-        {"note": "계약에 없는 필드"},
+        {"note": "API 명세에 없는 필드"},
     ],
 )
 def test_rejects_invalid_recording(fields):

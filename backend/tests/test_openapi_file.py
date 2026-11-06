@@ -5,7 +5,7 @@ from tools import export_openapi
 
 def test_openapi_file_matches_code():
     assert export_openapi.OUTPUT.read_text(encoding="utf-8") == export_openapi.render(), (
-        "계약이 바뀌었습니다. backend에서 python -m tools.export_openapi로 docs/openapi.json을 다시 만드세요"
+        "API 명세가 바뀌었습니다. backend에서 python -m tools.export_openapi로 docs/openapi.json을 다시 만드세요"
     )
 
 

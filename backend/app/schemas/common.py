@@ -16,7 +16,7 @@ UtcDatetime = Annotated[AwareDatetime, AfterValidator(_to_utc)]
 
 SampleRate = Literal[16000, 44100, 48000]
 
-# 계약을 바꾸지 않고 앱이 부가 정보를 넣는 자유 JSON 객체. 서버는 저장만 한다.
+# API 명세를 바꾸지 않고 앱이 부가 정보를 넣는 자유 JSON 객체. 서버는 저장만 한다.
 ClientMeta = Annotated[dict[str, JsonValue], Field(default_factory=dict)]
 
 
@@ -37,7 +37,7 @@ def require_unique(values: Iterable[Hashable], field: str, item: str) -> None:
 
 
 class ContractModel(BaseModel):
-    """요청·응답 모델의 기준. 계약에 없는 필드가 오면 거부한다."""
+    """요청·응답 모델의 기준. API 명세에 없는 필드가 오면 거부한다."""
 
     model_config = ConfigDict(extra="forbid")
 

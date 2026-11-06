@@ -25,7 +25,7 @@ def test_422_path_reaches_the_field_named_by_kind_rule(api_client):
     assert response.json() == {
         "error": {
             "code": "VALIDATION_ERROR",
-            "message": "요청이 계약과 다릅니다",
+            "message": "요청이 API 명세와 다릅니다",
             "fields": [{"path": "body.recordings[1].trial_no", "reason": "mpt_trial 녹음에는 trial_no 값이 필요합니다"}],
         }
     }
@@ -49,7 +49,7 @@ def test_422_lists_every_problem_field(api_client):
         "app_version": "0.1.0",
         "input_device": "wired_headset",
         "sample_rate": 22050,
-        "note": "계약에 없는 필드",
+        "note": "API 명세에 없는 필드",
     }
 
     response = api_client.put(f"/v1/sessions/{SESSION_ID}", json=body)

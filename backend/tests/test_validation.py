@@ -200,7 +200,7 @@ UNKNOWN_FIELD_PARENTS = [
 
 @pytest.mark.parametrize(("endpoint", "parent"), UNKNOWN_FIELD_PARENTS, ids=[body_path(p) for _, p in UNKNOWN_FIELD_PARENTS])
 def test_unknown_field_is_rejected(api_client, endpoint, parent):
-    body = edited(endpoint, [*parent, "note"], "계약에 없는 필드")
+    body = edited(endpoint, [*parent, "note"], "API 명세에 없는 필드")
 
     assert error_paths(send(api_client, endpoint, body)) == [body_path([*parent, "note"])]
 

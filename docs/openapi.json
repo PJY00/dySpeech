@@ -71,7 +71,7 @@
             }
           },
           "422": {
-            "description": "요청이 계약과 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
             "content": {
               "application/json": {
                 "schema": {
@@ -139,7 +139,7 @@
             }
           },
           "422": {
-            "description": "요청이 계약과 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
             "content": {
               "application/json": {
                 "schema": {
@@ -227,7 +227,7 @@
             }
           },
           "422": {
-            "description": "요청이 계약과 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
             "content": {
               "application/json": {
                 "schema": {
@@ -293,7 +293,7 @@
             }
           },
           "422": {
-            "description": "요청이 계약과 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
             "content": {
               "application/json": {
                 "schema": {
@@ -381,7 +381,7 @@
             }
           },
           "422": {
-            "description": "요청이 계약과 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
             "content": {
               "application/json": {
                 "schema": {
@@ -469,7 +469,7 @@
             }
           },
           "422": {
-            "description": "요청이 계약과 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
             "content": {
               "application/json": {
                 "schema": {
@@ -537,7 +537,7 @@
             }
           },
           "422": {
-            "description": "요청이 계약과 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
             "content": {
               "application/json": {
                 "schema": {
