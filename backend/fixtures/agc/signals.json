@@ -18,14 +18,14 @@
         {"start_s": 19.0, "end_s": 22.0, "level_dbfs": -9.0}
       ]
     },
-    "agc_sustain": {
+    "agc_hold": {
       "description": "같은 크기로 30초 유지한다. 앞뒤 1초는 무음",
       "duration_s": 32.0,
       "segments": [
         {"start_s": 1.0, "end_s": 31.0, "level_dbfs": -21.0}
       ]
     },
-    "agc_on_off": {
+    "agc_toggle": {
       "description": "1초 켜고 1초 끄기를 10번 되풀이한다. 앞 1초, 뒤 2초는 무음",
       "duration_s": 22.0,
       "segments": [

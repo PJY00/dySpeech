@@ -147,6 +147,7 @@ INVALID_VALUES = [
     ("put_session", ["client_meta"], ["목록은 받지 않음"]),
     ("upload_urls", ["recordings"], []),
     ("upload_urls", ["recordings", 0, "kind"], "unknown"),
+    ("upload_urls", ["recordings", 0, "agc_signal"], "agc_unknown"),
     ("upload_urls", ["recordings", 0, "duration_s"], 121),
     ("upload_urls", ["recordings", 0, "size_bytes"], 0),
     ("complete", ["device_measurements", 0, "metric"], "jitter"),
@@ -172,7 +173,9 @@ KIND_RULES = [
     ("game", {}, "game_run_id"),
     ("noise_floor", {"trial_no": 1}, "trial_no"),
     ("calibration_glide", {"sentence_id": "s1"}, "sentence_id"),
-    ("agc_tone", {"game_run_id": str(uuid.uuid4())}, "game_run_id"),
+    ("agc_tone", {"game_run_id": str(uuid.uuid4()), "agc_signal": "agc_hold"}, "game_run_id"),
+    ("agc_tone", {}, "agc_signal"),
+    ("noise_floor", {"agc_signal": "agc_steps"}, "agc_signal"),
 ]
 
 

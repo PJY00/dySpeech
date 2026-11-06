@@ -3,7 +3,7 @@ from typing import Literal, Self
 from pydantic import UUID4, Field, FiniteFloat, model_validator
 from pydantic_core import PydanticCustomError
 
-from app.schemas.common import ContractModel, RecordingKind, SampleRate, UtcDatetime, require_unique
+from app.schemas.common import AgcSignal, ContractModel, RecordingKind, SampleRate, UtcDatetime, require_unique
 
 MAX_DURATION_S = 120
 
@@ -12,6 +12,7 @@ FIELD_BY_KIND = {
     RecordingKind.mpt_trial: "trial_no",
     RecordingKind.eval_sentence: "sentence_id",
     RecordingKind.game: "game_run_id",
+    RecordingKind.agc_tone: "agc_signal",
 }
 
 
@@ -21,6 +22,7 @@ class RecordingIn(ContractModel):
     trial_no: int | None = Field(default=None, ge=1)
     sentence_id: str | None = Field(default=None, min_length=1, max_length=64)
     game_run_id: UUID4 | None = None
+    agc_signal: AgcSignal | None = None
     duration_s: FiniteFloat = Field(gt=0, le=MAX_DURATION_S)
     sample_rate: SampleRate
     size_bytes: int = Field(gt=0)

@@ -78,7 +78,7 @@ def metric_history(metric: Metric, **fields) -> dict:
         {"kind": "mpt_trial", "trial_no": 1},
         {"kind": "eval_sentence", "sentence_id": "s1"},
         {"kind": "game", "game_run_id": GAME_RUN_ID},
-        {"kind": "agc_tone"},
+        {"kind": "agc_tone", "agc_signal": "agc_steps"},
     ],
 )
 def test_accepts_each_recording_kind(fields):
@@ -92,6 +92,9 @@ def test_accepts_each_recording_kind(fields):
         {"kind": "eval_sentence"},
         {"kind": "game"},
         {"kind": "noise_floor", "trial_no": 1},
+        {"kind": "agc_tone"},
+        {"kind": "agc_tone", "agc_signal": "agc_unknown"},
+        {"kind": "noise_floor", "agc_signal": "agc_steps"},
         {"kind": "mpt_trial", "trial_no": 1, "sentence_id": "s1"},
         {"kind": "mpt_trial", "trial_no": 0},
         {"kind": "unknown"},

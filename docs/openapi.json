@@ -610,6 +610,16 @@
   },
   "components": {
     "schemas": {
+      "AgcSignal": {
+        "type": "string",
+        "enum": [
+          "agc_steps",
+          "agc_hold",
+          "agc_toggle"
+        ],
+        "title": "AgcSignal",
+        "description": "자동 게인 조절 시험 소리. 시험 소리 정답값 파일의 이름과 같다."
+      },
       "BaselinePoint": {
         "properties": {
           "session_id": {
@@ -1217,6 +1227,16 @@
               }
             ],
             "title": "Game Run Id"
+          },
+          "agc_signal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgcSignal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "duration_s": {
             "type": "number",

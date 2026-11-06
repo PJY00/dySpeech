@@ -186,7 +186,7 @@
 
 - **검사 순서**: 올라오지 않은 녹음 검사(409)를 먼저 하고, 모두 올라왔을 때 규격을 검사한다.
 - **앱 처리**: `invalid_recordings`의 녹음만 규격에 맞게 다시 만든다. 같은 `recording_id`로 업로드 URL을 다시 받아 올린 뒤 complete를 다시 보낸다.
-- **응답 모양**: 위 모양은 제안이고, 다음 단계에서 구현할 때 확정한다. 바뀌면 `api-changelog.md`에 적는다.
+- **응답 모양**: 위 모양으로 확정했다. 다음 단계에서 구현하며, 그때 `openapi.json`에도 들어간다.
 
 ---
 
@@ -279,6 +279,7 @@
 | `trial_no` | 정수(1부터) | `mpt_trial`에만 넣는다 |
 | `sentence_id` | 문자열(1~64자) | `eval_sentence`에만 넣는다 |
 | `game_run_id` | UUID v4 | `game`에만 넣는다. complete의 `game_runs`에 같은 ID가 있어야 한다 |
+| `agc_signal` | `agc_steps` / `agc_hold` / `agc_toggle` | `agc_tone`에만 넣는다. 재생한 시험 소리(9.3) |
 | `duration_s` | 숫자(0 초과, 120 이하) | 녹음 길이(초) |
 | `sample_rate` | `16000` / `44100` / `48000` | 샘플레이트 |
 | `size_bytes` | 정수(1 이상) | 파일 크기(바이트) |
@@ -303,7 +304,7 @@
 }
 ```
 
-`sentence_id`의 실제 값은 평가 전용 문장이 확정된 뒤 정한다. 예시의 `s1`은 자리 표시다.
+평가 전용 문장의 `sentence_id`는 `s1`이다([`metrics-spec.md`](metrics-spec.md) 6장).
 
 응답 200. 요청 순서대로 한 항목씩 나온다.
 
@@ -494,7 +495,7 @@ complete 뒤 `status`가 `done`이 될 때까지 가끔 확인한다. 서버 계
 | `mpt_trial` | 매 회차 2~3개. 편한 크기로 "아"를 최대한 길게 | `trial_no`(1부터) |
 | `eval_sentence` | 매 회차 1개. 평가 전용 문장 낭독 | `sentence_id` |
 | `game` | 선택. 게임 중 녹음 | `game_run_id` |
-| `agc_tone` | `agc_test` 세션 전용. 시험 소리를 재생하며 녹음(9.3) | 없음 |
+| `agc_tone` | `agc_test` 세션 전용. 시험 소리 3개를 재생하며 하나씩 녹음(9.3) | `agc_signal` |
 
 종류마다 꼭 넣는 필드가 빠져도 422이고, 다른 종류의 필드를 넣어도 422다. 예: `noise_floor`에 `trial_no`를 넣으면 422
 
@@ -759,10 +760,23 @@ complete 뒤 `status`가 `done`이 될 때까지 가끔 확인한다. 서버 계
 
 기기가 녹음 음량을 스스로 조절하는지 확인한다. 조절하면 음량 지표를 믿을 수 없다.
 
-1. 시험 소리 파일을 만든다. 만드는 방법은 [`backend/fixtures/agc/README.md`](../backend/fixtures/agc/README.md)에 있다.
-2. 다른 기기의 스피커로 시험 소리를 재생하면서, 앱으로 녹음한다(`kind=agc_tone`).
-3. 시험 소리 하나마다 `agc_test` 세션 하나를 만든다. 세션 등록의 `client_meta`에 재생한 파일 이름을 넣는다. 예: `{"agc_signal": "agc_steps"}`
+1. 시험 소리 파일 3개를 만든다. 만드는 방법과 준비는 [`backend/fixtures/agc/README.md`](../backend/fixtures/agc/README.md)에 있다.
+2. `agc_test` 세션 하나에서, 다른 기기의 스피커로 시험 소리를 하나씩 재생하며 녹음한다. 소리 하나가 녹음 하나다.
+3. 녹음 3개를 `kind=agc_tone`으로 올리고, 녹음마다 `agc_signal`에 재생한 소리를 적는다.
 4. 판정은 서버 분석이 한다.
+
+업로드 URL 요청 예시
+
+<!-- example: UploadUrlsIn -->
+```json
+{
+  "recordings": [
+    {"recording_id": "7a1e3c58-9d2b-4e6f-8a0c-1b3d5f7e9a21", "kind": "agc_tone", "agc_signal": "agc_steps", "duration_s": 24.0, "sample_rate": 48000, "size_bytes": 2304044},
+    {"recording_id": "8b2f4d69-ae3c-4f70-9b1d-2c4e6a8f0b32", "kind": "agc_tone", "agc_signal": "agc_hold", "duration_s": 33.0, "sample_rate": 48000, "size_bytes": 3168044},
+    {"recording_id": "9c3a5e7a-bf4d-4a81-ac2e-3d5f7b9a1c43", "kind": "agc_tone", "agc_signal": "agc_toggle", "duration_s": 23.0, "sample_rate": 48000, "size_bytes": 2208044}
+  ]
+}
+```
 
 ### 9.4 반복 측정(`purpose=retest`)
 

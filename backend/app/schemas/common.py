@@ -64,6 +64,14 @@ class RecordingKind(StrEnum):
     agc_tone = "agc_tone"
 
 
+class AgcSignal(StrEnum):
+    """자동 게인 조절 시험 소리. 시험 소리 정답값 파일의 이름과 같다."""
+
+    agc_steps = "agc_steps"
+    agc_hold = "agc_hold"
+    agc_toggle = "agc_toggle"
+
+
 class Metric(StrEnum):
     max_phonation_time = "max_phonation_time"
     loudness_decay_slope = "loudness_decay_slope"
