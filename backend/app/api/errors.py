@@ -75,8 +75,17 @@ async def handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
     return error_response(exc.status_code, exc.code, exc.message)
 
 
+def field_error(error: dict[str, Any]) -> FieldError:
+    if error["type"] == "json_invalid":
+        # loc의 마지막 값은 필드가 아니라 본문에서 문제가 난 글자 위치다.
+        position = error["loc"][-1]
+        detail = (error.get("ctx") or {}).get("error", "")
+        return FieldError(path="body", reason=f"JSON 형식이 아닙니다(위치 {position}): {detail}")
+    return FieldError(path=field_path(error), reason=error["msg"])
+
+
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-    fields = [FieldError(path=field_path(error), reason=error["msg"]) for error in exc.errors()]
+    fields = [field_error(error) for error in exc.errors()]
     detail = ValidationErrorDetail(code=ErrorCode.validation_error, message="요청이 계약과 다릅니다", fields=fields)
     return JSONResponse(status_code=422, content=ValidationErrorResponse(error=detail).model_dump(mode="json"))
 

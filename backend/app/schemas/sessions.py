@@ -102,8 +102,8 @@ class CompleteIn(ContractModel):
 
     @model_validator(mode="after")
     def check_unique_items(self) -> Self:
-        require_unique((m.metric for m in self.device_measurements), "device_measurements의 metric")
-        require_unique((g.game_run_id for g in self.game_runs), "game_runs의 game_run_id")
+        require_unique((m.metric for m in self.device_measurements), "device_measurements", "metric")
+        require_unique((g.game_run_id for g in self.game_runs), "game_runs", "game_run_id")
         return self
 
 

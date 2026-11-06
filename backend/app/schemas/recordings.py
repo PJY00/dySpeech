@@ -48,7 +48,7 @@ class UploadUrlsIn(ContractModel):
 
     @model_validator(mode="after")
     def check_unique_ids(self) -> Self:
-        require_unique((r.recording_id for r in self.recordings), "recording_id")
+        require_unique((r.recording_id for r in self.recordings), "recordings", "recording_id")
         return self
 
 

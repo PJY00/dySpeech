@@ -4,6 +4,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, JsonValue
+from pydantic_core import PydanticCustomError
 
 
 def _to_utc(value: datetime) -> datetime:
@@ -19,7 +20,8 @@ SampleRate = Literal[16000, 44100, 48000]
 ClientMeta = Annotated[dict[str, JsonValue], Field(default_factory=dict)]
 
 
-def require_unique(values: Iterable[Hashable], label: str) -> None:
+def require_unique(values: Iterable[Hashable], field: str, item: str) -> None:
+    """목록 field 안에서 item 값이 겹치면 거부한다. ctx의 field는 422 응답에서 경로를 목록까지 잇는 데 쓴다."""
     seen: set[Hashable] = set()
     duplicates: set[str] = set()
     for value in values:
@@ -27,7 +29,11 @@ def require_unique(values: Iterable[Hashable], label: str) -> None:
             duplicates.add(str(value))
         seen.add(value)
     if duplicates:
-        raise ValueError(f"{label} 값이 겹칩니다: {', '.join(sorted(duplicates))}")
+        raise PydanticCustomError(
+            "duplicate",
+            "{field}의 {item} 값이 겹칩니다: {values}",
+            {"field": field, "item": item, "values": ", ".join(sorted(duplicates))},
+        )
 
 
 class ContractModel(BaseModel):
