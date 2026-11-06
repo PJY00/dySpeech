@@ -93,14 +93,14 @@ Apple 칩 Mac과 Homebrew 기준입니다. Homebrew가 없으면 https://brew.sh
 1. Python 3.13과 PostgreSQL 설치
 
    ```bash
-   brew install python@3.13 postgresql@16
-   brew services start postgresql@16
-   echo 'export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"' >> ~/.zprofile
+   brew install python@3.13 postgresql@17
+   brew services start postgresql@17
+   echo 'export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"' >> ~/.zprofile
    source ~/.zprofile
    ```
 
-   - `postgresql@16`은 Homebrew가 PATH에 자동으로 넣지 않아서 세 번째 줄이 필요합니다.
-   - PostgreSQL 주 버전은 운영 DB(Supabase)가 정해지면 같은 버전으로 맞출 예정입니다.
+   - `postgresql@17`은 Homebrew가 PATH에 자동으로 넣지 않아서 세 번째 줄이 필요합니다.
+   - 운영 DB(Supabase)와 같은 PostgreSQL 17을 씁니다. 16을 쓰고 있었다면 `brew services stop postgresql@16`, `brew unlink postgresql@16` 후 17을 설치합니다.
 
 2. 테스트 DB 만들기
 
