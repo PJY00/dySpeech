@@ -5,3 +5,5 @@ scipy==1.18.1
 librosa==1.0.0
 praat-parselmouth==0.4.7
 soundfile==0.14.0
+pydantic-settings==2.16.2
+psycopg[binary]==3.3.8
