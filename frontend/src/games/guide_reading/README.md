@@ -10,7 +10,12 @@
   - 실시간 추정이 N(정답 음절 수)의 80% 이상이면: 1초 조용할 때 끝낸다(안내 커서와 관계없음)
   - 80% 미만이면: 안내 커서가 끝난 뒤 3초 조용할 때 끝낸다. 커서가 끝나기 전에는 조용해도 끝내지 않는다
   - 최대 시간: 준비 1초 + 커서 시간 × 2.5 + 4초
-- 라운드 성공률 = 통과 ÷ 읽은 문장 × 100. 80% 이상 `up`, 40% 이하 `down`, 그 사이 `hold`
+- 끝까지 읽지 못한 문장(`after_guide`·`max`로 끝남)은 말속도로 판정하지 않는다. 말속도가 N(문장 전체 음절 수) ÷ 읽은 부분의 발화 시간이라, 절반만 읽으면 약 2배로 잡히고 느리게 읽다 멈추면 통과할 수도 있기 때문이다.
+  - 결과에 `end_reason`을 남기고 `judged: false`로 두어 통과·실패 어디에도 세지 않는다(성공률 분모에서 뺌).
+  - 화면: "끝까지 읽지 못한 것 같아요"와 단추 두 개. "다시 읽기"는 같은 문장이고 이 시도는 판정에 세지 않는다. "다음 문장"은 넘어간다.
+  - 진행 표시(주황 점)는 `progress`로 끝났을 때만 끝까지 채운다.
+- 다음 문장·다시 읽기로 준비 화면에 돌아갈 때 안내 커서와 진행 표시를 0으로 돌린다.
+- 라운드 성공률 = 통과 ÷ 판정한 문장 × 100. 80% 이상 `up`, 40% 이하 `down`, 그 사이 `hold`. 판정한 문장이 3개 미만이면 `deferred`
 
 ## 훈련 문장
 
@@ -87,7 +92,8 @@
 ## 라운드 기록 (`game_runs`, api.md 7.2)
 
 - `params`: `sentence_ids`, `target_rate_range`[아래, 위](음절/초), `guide_rate`, `cv_max`, `reference_rate`, `reference_source`(`baseline` / `default` / `stored` / `rebaseline`)
-- `result.sentences[]`: `sentence_id`, `syllables`, `articulation_rate`, `cv`(구하지 못하면 null), `rhythm_checked`, `detected_syllables`, `speech_s`, `passed`, `reason`(`fast` / `slow` / `uneven` / `no_speech`, 통과면 null)
+- `params.sentence_ids`는 라운드의 문장 5개(다시 읽기로 결과 줄이 더 많아도 같음)
+- `result.sentences[]`: 시도마다 한 줄. `sentence_id`, `syllables`, `articulation_rate`(판정 안 한 시도는 null), `cv`(구하지 못하면 null), `rhythm_checked`, `detected_syllables`, `speech_s`, `end_reason`(`progress` / `after_guide` / `max`), `judged`, `passed`, `reason`(`fast` / `slow` / `uneven` / `no_speech` / `incomplete`, 통과면 null)
 - 문장 녹음은 판정 뒤 지운다(라운드 녹음은 올리지 않음).
 
 ## 로그 (Metro)
