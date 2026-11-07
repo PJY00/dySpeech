@@ -9,6 +9,7 @@ backend 폴더에서 실행한다.
 - 만든 ID는 저장소 루트의 data/mock_app/에 먼저 기록하고, 끝나면 정리 스크립트(tools.cleanup)로 지운다.
   정리는 .env(또는 환경 변수)의 DATABASE_URL·AWS 값으로 한다. 서버와 같은 DB·버킷을 가리켜야 한다.
 - 일부러 틀린 요청도 보낸다: 올리지 않은 녹음(409), 스테레오 WAV(422), 앱 키 없음(401).
+- 측정 녹음은 정답을 아는 합성 신호(fixtures/synthetic)다. 서버 처리가 끝나기를 기다린 뒤 서버 지표가 정답 허용 범위 안인지 본다.
 - 앱 키, presigned URL은 출력하지 않는다(URL 안에 접근 키 ID가 들어 있다).
 """
 
@@ -16,6 +17,7 @@ import argparse
 import io
 import json
 import sys
+import time
 import uuid
 import wave
 from collections.abc import Callable
@@ -28,10 +30,35 @@ from urllib.request import Request, urlopen
 
 import numpy as np
 
+from fixtures.synthetic import generate as synthetic
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 IDS_DIR = REPO_ROOT / "data" / "mock_app"
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 RATE = 48000
+DEFAULT_TIMEOUT_S = 120.0
+SESSION_ANSWERS = json.loads(synthetic.ANSWERS.read_text(encoding="utf-8"))["session"]["answers"]
+
+
+def synthetic_wavs() -> dict[str, bytes]:
+    """합성 신호를 WAV 바이트로 만든다(파일로 쓰지 않음)."""
+    synth = synthetic.Synth(synthetic.load_signals())
+    out = {}
+    for name in synth.s["files"]:
+        buffer = io.BytesIO()
+        pcm = np.round(np.clip(synth.build(name), -1, 1) * synthetic.FULL_SCALE).astype("<i2")
+        with wave.open(buffer, "wb") as file:
+            file.setnchannels(1)
+            file.setsampwidth(2)
+            file.setframerate(synth.rate)
+            file.writeframes(pcm.tobytes())
+        out[name] = buffer.getvalue()
+    return out
+
+
+def seconds_of(data: bytes) -> float:
+    with wave.open(io.BytesIO(data), "rb") as file:
+        return round(file.getnframes() / file.getframerate(), 3)
 
 
 def make_wav(
@@ -164,8 +191,12 @@ class Recording:
 class MockApp:
     """앱이 하는 순서대로 요청을 보내고, 응답이 API 명세대로인지 확인한다."""
 
-    def __init__(self, api: Api, files: Http, ids_path: Path, report: Report) -> None:
+    def __init__(
+        self, api: Api, files: Http, ids_path: Path, report: Report, timeout_s: float = DEFAULT_TIMEOUT_S, poll_s: float = 1.0
+    ) -> None:
         self.api = api
+        self.timeout_s = timeout_s
+        self.poll_s = poll_s
         self.files = files
         self.ids_path = ids_path
         self.report = report
@@ -230,6 +261,32 @@ class MockApp:
     def complete(self, session_id: str, body: dict) -> Reply:
         return self.api.call("POST", f"/v1/sessions/{session_id}/complete", body)
 
+    def wait_done(self, session_id: str, name: str) -> dict:
+        """서버 지표 계산이 끝날(done 또는 failed) 때까지 기다린다."""
+        started = time.monotonic()
+        body: dict = {}
+        while time.monotonic() - started < self.timeout_s:
+            reply = self.api.call("GET", f"/v1/sessions/{session_id}")
+            body = reply.json() if reply.status == 200 else {}
+            if body.get("status") in ("done", "failed"):
+                break
+            time.sleep(self.poll_s)
+        waited = time.monotonic() - started
+        detail = f"상태 {body.get('status')}, 오류 {body.get('error')}, {waited:.0f}초 기다림"
+        self.report.require(f"서버 처리 완료(done): {name}", body.get("status") == "done", detail)
+        return body
+
+    def check_server_values(self, detail: dict) -> None:
+        """서버 지표가 합성 신호 정답의 허용 범위 안인지 본다."""
+        values = {m["metric"]: m for m in detail["server_measurements"]}
+        for metric, expected in SESSION_ANSWERS.items():
+            if metric.startswith("calibration_"):
+                continue
+            got = values.get(metric)
+            shown = "없음" if got is None else f"{got['value']:.3f}"
+            ok = got is not None and abs(got["value"] - expected["value"]) <= expected["tolerance"] and not got["low_reliability"]
+            self.report.check(f"서버 지표 {metric} = {shown} (정답 {expected['value']} ± {expected['tolerance']})", ok)
+
     def run(self) -> None:
         self.save_ids()
         api = self.api
@@ -245,11 +302,16 @@ class MockApp:
         started = datetime.now(UTC) - timedelta(minutes=30)
         self.put_session(self.training_id, "training", started)
         run_id = str(uuid.uuid4())
-        glide = Recording("calibration_glide", make_wav(2.0, tone_hz=150, glide_to_hz=400), 2.0)
-        quiet = Recording("noise_floor", make_wav(2.0, tone_hz=None, noise=0.003, seed=1), 2.0)
-        trial_1 = Recording("mpt_trial", make_wav(3.0, tone_hz=220), 3.0, {"trial_no": 1})
-        trial_2 = Recording("mpt_trial", make_wav(3.0, tone_hz=225), 3.0, {"trial_no": 2})
-        sentence = Recording("eval_sentence", make_wav(3.0, tone_hz=180, glide_to_hz=140, noise=0.01, seed=2), 3.0, {"sentence_id": "s1"})
+        wavs = synthetic_wavs()
+
+        def measured(kind: str, name: str, **fields) -> Recording:
+            return Recording(kind, wavs[name], seconds_of(wavs[name]), fields)
+
+        glide = measured("calibration_glide", "f0_glide")
+        quiet = measured("noise_floor", "noise_floor")
+        trial_1 = measured("mpt_trial", "broken_phonation", trial_no=1)
+        trial_2 = measured("mpt_trial", "steady_phonation", trial_no=2)
+        sentence = measured("eval_sentence", "paused_speech", sentence_id="s1")
         game = Recording("game", make_wav(2.0, tone_hz=300), 2.0, {"game_run_id": run_id})
         recordings = [glide, quiet, trial_1, trial_2, sentence, game]
         uploads = self.upload_urls(self.training_id, [r.request() for r in recordings])
@@ -286,7 +348,7 @@ class MockApp:
             lambda b: b["error"]["missing_recording_ids"] == [trial_2.recording_id],
         )
 
-        stereo = make_wav(3.0, tone_hz=225, channels=2)
+        stereo = make_wav(trial_2.seconds, tone_hz=200, channels=2)
         self.put_file(uploads[trial_2.recording_id], stereo, "스테레오(틀린 파일)")
         self.expect(
             "스테레오 WAV는 422",
@@ -301,12 +363,9 @@ class MockApp:
         accepted = {"session_id": self.training_id, "status": "processing"}
         self.expect("complete 202", self.complete(self.training_id, complete_body), 202, lambda b: b == accepted)
         self.expect("complete 반복(같은 응답)", self.complete(self.training_id, complete_body), 202, lambda b: b == accepted)
-        self.expect(
-            "처리 상태(processing, 서버 값 없음)",
-            api.call("GET", f"/v1/sessions/{self.training_id}"),
-            200,
-            lambda b: b["status"] == "processing" and b["server_measurements"] == [] and b["error"] is None,
-        )
+        detail = self.wait_done(self.training_id, "훈련 세션")
+        self.report.check("기준선 회차 표시(is_baseline)", detail["is_baseline"] is True)
+        self.check_server_values(detail)
 
         self.put_session(self.agc_id, "agc_test", started + timedelta(minutes=40))
         tones = [
@@ -321,13 +380,19 @@ class MockApp:
             self.complete(self.agc_id, {"ended_at": datetime.now(UTC).isoformat()}),
             202,
         )
+        agc = self.wait_done(self.agc_id, "자동 게인 조절 시험 세션")
+        self.report.check("자동 게인 조절 시험 세션은 서버 지표 없음(분석 스크립트가 따로 판정)", agc["server_measurements"] == [])
 
+        # 첫 훈련 회차라 모든 진전도 지표의 기준선이 이 세션이고 변화량은 0이다.
         self.expect(
-            "진전도(지표 8개 no_data, 기기 값 1회차)",
+            "진전도(지표 8개 모두 이 회차가 기준선, 변화량 0, 기기 값 1회차)",
             api.call("GET", f"/v1/users/{self.user_id}/history"),
             200,
             lambda b: len(b["metrics"]) == 8
-            and all(m["status"] == "no_data" for m in b["metrics"])
+            and all(
+                m["baseline"]["session_id"] == self.training_id and len(m["series"]) == 1 and m["latest"]["change"] == 0
+                for m in b["metrics"]
+            )
             and [s["session_id"] for s in b["recent_device_measurements"]] == [self.training_id]
             and len(b["recent_device_measurements"][0]["measurements"]) == 3,
         )
@@ -377,10 +442,12 @@ def main(
     cleaner: Callable[[Path], bool] | None = None,
     ids_dir: Path = IDS_DIR,
     out: Callable[[str], None] = print,
+    poll_s: float = 1.0,
 ) -> int:
     parser = argparse.ArgumentParser(description="합성 WAV로 앱의 전체 흐름을 서버에 보내 본다")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help=f"서버 주소(기본 {DEFAULT_BASE_URL})")
     parser.add_argument("--keep", action="store_true", help="끝난 뒤 만든 데이터를 지우지 않는다")
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_S, help="세션마다 서버 처리를 기다리는 최대 시간(초)")
     args = parser.parse_args(argv)
 
     if api is None:
@@ -398,7 +465,7 @@ def main(
     out(f"서버: {api.base_url or '(테스트 클라이언트)'}")
     out(f"ID 기록: {ids_path}")
     try:
-        MockApp(api, files, ids_path, report).run()
+        MockApp(api, files, ids_path, report, args.timeout, poll_s).run()
     except StepFailed:
         out("앞 단계가 실패해 나머지는 건너뜁니다")
     finally:

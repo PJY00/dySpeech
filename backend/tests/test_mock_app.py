@@ -9,8 +9,10 @@ from botocore.exceptions import ClientError
 from conftest import TEST_APP_KEY
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.db.models import GameRunRow, MeasurementRow, RecordingRow, SessionRow, UserRow
+from app.jobs.worker import ProcessingWorker
 from app.main import app
 from app.storage.wav import check_wav, parse_wav_header
 from tools import mock_app
@@ -50,6 +52,17 @@ class MotoFiles:
             return Reply(404, b"")
 
 
+@pytest.fixture
+def worker(flow_client, db_engine, storage):
+    """배포 서버처럼 처리 작업 스레드를 띄운다. complete가 깨운다."""
+    processing = ProcessingWorker(lambda: Session(db_engine, expire_on_commit=False), lambda: storage, idle_s=0.2)
+    app.state.processing_worker = processing
+    processing.start()
+    yield processing
+    processing.stop()
+    del app.state.processing_worker
+
+
 def count(db, model) -> int:
     db.expire_all()
     return db.scalar(select(func.count()).select_from(model))
@@ -58,24 +71,33 @@ def count(db, model) -> int:
 def run(flow_client, db, storage, tmp_path, files=None, argv=()):
     lines: list[str] = []
     code = mock_app.main(
-        list(argv),
+        ["--timeout", "60", *argv],
         # flow_client가 DB·S3를 테스트용으로 바꿔 둔 앱에, 기본 헤더가 없는 클라이언트로 보낸다.
         api=Api("", TEST_APP_KEY, AppHttp(TestClient(app))),
         files=files or MotoFiles(storage),
         cleaner=partial(mock_app.clean_up, db=db, storage=storage, out=lines.append),
         ids_dir=tmp_path,
         out=lines.append,
+        poll_s=0.2,
     )
     return code, lines
 
 
-def test_full_flow_passes_and_cleans_up(flow_client, db, storage, tmp_path):
+def test_full_flow_passes_and_cleans_up(flow_client, db, storage, tmp_path, worker):
     code, lines = run(flow_client, db, storage, tmp_path)
 
     assert code == 0, "\n".join(lines)
     assert not [line for line in lines if line.startswith("실패")]
-    for step in ("올리지 않은 녹음은 409", "스테레오 WAV는 422", "complete 202", "열람 URL로 받은 파일이 올린 파일과 같음"):
+    for step in (
+        "올리지 않은 녹음은 409",
+        "스테레오 WAV는 422",
+        "complete 202",
+        "서버 처리 완료(done): 훈련 세션",
+        "기준선 회차 표시(is_baseline)",
+        "열람 URL로 받은 파일이 올린 파일과 같음",
+    ):
         assert f"통과  {step}" in lines
+    assert len([line for line in lines if line.startswith("통과  서버 지표 ")]) == 11
     assert "통과  정리 후 남은 것: DB 행 0개, S3 객체 0개" in lines
     assert all(count(db, model) == 0 for model in (UserRow, SessionRow, RecordingRow, MeasurementRow, GameRunRow))
     assert storage.keys_under("users/") == []
@@ -83,7 +105,7 @@ def test_full_flow_passes_and_cleans_up(flow_client, db, storage, tmp_path):
     assert ids_file.read_text(encoding="utf-8").count("users/") == 9  # 훈련 녹음 6개 + 시험 소리 3개
 
 
-def test_keep_leaves_data_for_inspection(flow_client, db, storage, tmp_path):
+def test_keep_leaves_data_for_inspection(flow_client, db, storage, tmp_path, worker):
     code, lines = run(flow_client, db, storage, tmp_path, argv=["--keep"])
 
     assert code == 0
@@ -105,7 +127,7 @@ def test_failed_step_stops_and_still_cleans_up(flow_client, db, storage, tmp_pat
     assert count(db, UserRow) == 0
 
 
-def test_output_has_no_app_key_or_urls(flow_client, db, storage, tmp_path):
+def test_output_has_no_app_key_or_urls(flow_client, db, storage, tmp_path, worker):
     _, lines = run(flow_client, db, storage, tmp_path)
 
     text = "\n".join(lines)
