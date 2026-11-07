@@ -13,16 +13,18 @@ API 명세([`api.md`](api.md), [`openapi.json`](openapi.json))가 바뀔 때마�
 
 ---
 
-## 예정
+## 0.2.1 (2026-11-07): 서버 지표 계산
 
-아직 버전을 올리지 않은 변경이다. 다음 버전을 낼 때 그 기록으로 옮긴다.
+응답 형식은 바뀌지 않았다(수 번호). 값이 채워지고, 실패 때의 오류 코드를 정했다.
 
+- **서버 지표 계산 시작**
+  - complete 뒤 서버가 WAV에서 지표를 계산하고, 세션 `status`가 `done` 또는 `failed`가 된다. 세션은 하나씩 차례로 계산한다([`api.md` 4.5](api.md#45-처리-상태와-서버-지표-get-v1sessionssession_id)).
+  - `server_measurements`와 진전도(`baseline`, `series`, `latest`, `status`)에 값이 들어간다. 계산 방법은 [`metrics-spec.md`](metrics-spec.md)에 있고, 알고리즘 버전은 `1.0.0`이다.
+  - `GET /v1/metrics`의 `mdc`는 반복 측정 분석이 끝나면 채워진다. 그 전에는 `null`이다.
+- **`failed`의 `error.code`**: `PROCESSING_FAILED`(녹음을 읽지 못함·계산 오류), `PROCESSING_ABANDONED`(계산을 2번 시작했지만 끝내지 못함). 일부 지표만 못 구하면 `done`이고 그 지표만 없다.
+- **명확히 한 것**: 진전도의 기준선은 지표마다 그 지표 값이 있는 첫 완료 회차다([`api.md` 8.1](api.md#81-규칙)).
 - **용어: 판 → 라운드(필드 이름 변경 없음)**: 게임의 한 차례를 문서와 설명에서 "라운드"라고 쓴다. 예: 게임 라운드 ID(`game_run_id`), 라운드 번호(`round_index`), 라운드 성공률(`success_rate_pct`). 지난 기록의 "판"은 그대로 둔다.
-  - 앱 영향: 없음. 필드 이름과 동작은 그대로다.
-- **서버 지표 계산**: 아직 적용되지 않았다. 응답 형식은 바뀌지 않는다.
-  - complete 뒤 서버가 WAV에서 지표를 계산하고, 세션 `status`가 `done` 또는 `failed`가 된다.
-  - `server_measurements`와 진전도(`baseline`, `series`, `latest`, `status`)에 값이 들어간다.
-  - 앱 영향: 없음. 지금도 이 값들이 비어 있거나 `no_data`인 경우를 처리하고 있어야 한다.
+- **앱 영향**: 필드와 이름은 그대로다. `processing`이 `done`·`failed`로 바뀌는 것, `failed`의 두 오류 코드를 처리한다.
 
 ---
 
