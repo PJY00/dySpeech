@@ -67,6 +67,9 @@ class UserRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     # 앱이 사용자를 만든 시각(요청 값)
     created_at: Mapped[datetime] = mapped_column(Timestamp)
+    # 캘리브레이션 녹음에서 구한 편한 음높이 범위.
+    # {"f0_low_hz", "f0_high_hz", "algorithm_version", "session_id"}. 알고리즘 버전이 다르면 쓰지 않고 다시 구한다.
+    calibration: Mapped[dict | None] = mapped_column(JSONB)
 
     sessions: Mapped[list["SessionRow"]] = children("user")
 
@@ -90,6 +93,8 @@ class SessionRow(Base):
     is_baseline: Mapped[bool] = mapped_column(server_default=false())
     # 처리에 실패했을 때 {"code", "message"}
     error: Mapped[dict | None] = mapped_column(JSONB)
+    # 서버 지표 계산을 시작한 횟수. 계산 전에 먼저 1을 더해 저장한다(처리 중 서버가 죽어도 남도록).
+    processing_attempts: Mapped[int] = mapped_column(server_default=text("0"))
     client_meta: Mapped[dict] = mapped_column(JSONB, server_default=EMPTY_JSON)
     complete_client_meta: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
