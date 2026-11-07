@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "dySpeech API",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "paths": {
     "/v1/users/{user_id}": {
@@ -529,11 +529,19 @@
             }
           },
           "422": {
-            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
+            "description": "요청이 API 명세와 다름(VALIDATION_ERROR, fields에 문제 필드의 경로와 이유), 또는 올린 WAV가 규격과 다름(INVALID_RECORDING_FORMAT, invalid_recordings에 녹음 ID와 이유)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRecordingsResponse"
+                    }
+                  ],
+                  "title": "Response 422 Post Complete V1 Sessions  Session Id  Complete Post"
                 }
               }
             }
@@ -1029,6 +1037,72 @@
           "recent_device_measurements"
         ],
         "title": "History"
+      },
+      "InvalidRecording": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Recording Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "examples": [
+              "채널이 2개입니다. 모노(1개)여야 합니다"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recording_id",
+          "reason"
+        ],
+        "title": "InvalidRecording"
+      },
+      "InvalidRecordingsDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "SESSION_NOT_FOUND"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "invalid_recordings": {
+            "items": {
+              "$ref": "#/components/schemas/InvalidRecording"
+            },
+            "type": "array",
+            "title": "Invalid Recordings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "invalid_recordings"
+        ],
+        "title": "InvalidRecordingsDetail"
+      },
+      "InvalidRecordingsResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/InvalidRecordingsDetail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "InvalidRecordingsResponse"
       },
       "JsonValue": {},
       "LatestPoint": {

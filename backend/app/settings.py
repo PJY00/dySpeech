@@ -10,7 +10,8 @@ ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 class Settings(BaseSettings):
     """환경 변수에서 먼저 읽고, 없으면 backend/.env에서 읽는다.
 
-    값이 없어도 서버가 뜨도록 모든 값은 비어 있을 수 있다.
+    테스트와 도구가 일부 값만으로 돌 수 있도록 모든 값은 비어 있을 수 있다.
+    서버는 시작할 때 운영 변수가 모두 있는지 확인한다(require_operating_settings).
     """
 
     model_config = SettingsConfigDict(

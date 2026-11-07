@@ -93,9 +93,14 @@ def error_paths(response) -> list[str]:
     return [field["path"] for field in response.json()["error"]["fields"]]
 
 
+def passes_validation(response) -> bool:
+    """입력 검증을 통과해 처리기까지 갔는지. 없는 ID라 404가 나와도 통과한 것이다."""
+    return response.status_code not in (401, 422, 500)
+
+
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-def test_valid_request_succeeds(api_client, endpoint):
-    assert send(api_client, endpoint).status_code in (200, 202)
+def test_valid_request_passes_validation(flow_client, endpoint):
+    assert passes_validation(send(flow_client, endpoint))
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
@@ -182,11 +187,11 @@ KIND_RULES = [
 
 
 @pytest.mark.parametrize("sentence_id", EVAL_SENTENCES)
-def test_eval_sentence_accepts_configured_sentence_ids(api_client, sentence_id):
+def test_eval_sentence_accepts_configured_sentence_ids(flow_client, sentence_id):
     body = valid_bodies()["upload_urls"]
     body["recordings"][0] |= {"kind": "eval_sentence", "sentence_id": sentence_id}
 
-    assert send(api_client, "upload_urls", body).status_code == 200
+    assert passes_validation(send(flow_client, "upload_urls", body))
 
 
 @pytest.mark.parametrize("sentence_id", ["s2", "S1", ""])
@@ -230,10 +235,10 @@ def test_unknown_field_is_rejected(api_client, endpoint, parent):
 
 
 @pytest.mark.parametrize("endpoint", ["put_session", "complete"])
-def test_client_meta_carries_extra_information(api_client, endpoint):
+def test_client_meta_carries_extra_information(flow_client, endpoint):
     body = edited(endpoint, ["client_meta"], {"screen": "measurement", "retry": 2, "nested": {"flags": [True, None]}})
 
-    assert send(api_client, endpoint, body).status_code in (200, 202)
+    assert passes_validation(send(flow_client, endpoint, body))
 
 
 def test_old_success_rate_name_is_rejected(api_client):

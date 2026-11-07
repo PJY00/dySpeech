@@ -9,6 +9,7 @@ from psycopg.conninfo import conninfo_to_dict
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_db, get_recording_storage
 from app.db.engine import make_engine
 from app.main import app
 from app.settings import Settings, get_settings
@@ -21,15 +22,28 @@ TEST_REGION = "ap-northeast-2"
 TEST_BUCKET = "dyspeech-test-recordings"
 
 
-def make_client(server_key: str | None, request_key: str | None) -> TestClient:
+class Unavailable:
+    """DB나 S3를 쓰지 않아야 하는 테스트에 넣는 자리표시. 처리기가 쓰면 바로 실패한다."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __getattr__(self, attribute: str):
+        raise AssertionError(f"이 테스트는 {self.name}를 쓰지 않아야 합니다({attribute})")
+
+
+def make_client(server_key: str | None, request_key: str | None, get_test_db=None, storage=None) -> TestClient:
+    """DB와 S3를 주지 않으면 자리표시를 넣는다. 인증·입력 검증·크기 상한은 처리기 전에 끝나므로 DB 없이 확인한다."""
     app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, app_api_key=server_key)
+    app.dependency_overrides[get_db] = get_test_db or (lambda: Unavailable("DB"))
+    app.dependency_overrides[get_recording_storage] = lambda: storage or Unavailable("S3")
     headers = {"X-App-Key": request_key} if request_key is not None else {}
     return TestClient(app, headers=headers)
 
 
 @pytest.fixture
 def api_client():
-    """서버와 요청의 앱 키가 맞는 클라이언트."""
+    """서버와 요청의 앱 키가 맞는 클라이언트. DB와 S3는 없다."""
     yield make_client(TEST_APP_KEY, TEST_APP_KEY)
     app.dependency_overrides.clear()
 
@@ -99,3 +113,15 @@ def storage():
         storage = make_storage(settings)
         storage.client.create_bucket(Bucket=TEST_BUCKET, CreateBucketConfiguration={"LocationConstraint": TEST_REGION})
         yield storage
+
+
+@pytest.fixture
+def flow_client(db_engine, db, storage):
+    """로컬 테스트 DB와 moto S3로 실제 처리를 하는 클라이언트. 요청마다 새 DB 세션을 쓴다(운영과 같게)."""
+
+    def get_test_db():
+        with Session(db_engine, expire_on_commit=False) as session:
+            yield session
+
+    yield make_client(TEST_APP_KEY, TEST_APP_KEY, get_test_db, storage)
+    app.dependency_overrides.clear()

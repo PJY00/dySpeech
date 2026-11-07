@@ -118,3 +118,16 @@ class MissingRecordingsDetail(ErrorDetail):
 
 class MissingRecordingsResponse(ContractModel):
     error: MissingRecordingsDetail
+
+
+class InvalidRecording(ContractModel):
+    recording_id: UUID4
+    reason: str = Field(examples=["채널이 2개입니다. 모노(1개)여야 합니다"])
+
+
+class InvalidRecordingsDetail(ErrorDetail):
+    invalid_recordings: list[InvalidRecording]
+
+
+class InvalidRecordingsResponse(ContractModel):
+    error: InvalidRecordingsDetail

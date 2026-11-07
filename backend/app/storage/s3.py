@@ -15,6 +15,8 @@ DOWNLOAD_URL_TTL = timedelta(minutes=10)
 WAV_CONTENT_TYPE = "audio/wav"
 MISSING_OBJECT_CODES = {"404", "NoSuchKey", "NotFound"}
 DELETE_BATCH = 1000  # S3 한 번 삭제 요청의 최대 객체 수
+# 녹음 보관 기간. 버킷의 수명 주기 규칙(올라간 날부터 365일 뒤 삭제)과 같게 둔다.
+RECORDING_RETENTION = timedelta(days=365)
 
 
 def recording_key(user_id: UUID, session_id: UUID, recording_id: UUID) -> str:
@@ -31,6 +33,13 @@ class PresignedUrl:
     method: str
     headers: dict[str, str]
     expires_at: datetime
+
+
+@dataclass(frozen=True)
+class ObjectInfo:
+    size: int
+    # S3에 올라간 시각. 수명 주기 규칙은 이 시각부터 센다.
+    last_modified: datetime
 
 
 def make_client(settings: Settings) -> BaseClient:
@@ -84,14 +93,20 @@ class RecordingStorage:
         )
         return PresignedUrl(url, "GET", {}, (now or datetime.now(UTC)) + DOWNLOAD_URL_TTL)
 
-    def size(self, key: str) -> int | None:
-        """객체 크기(바이트). 없으면 None"""
+    def info(self, key: str) -> ObjectInfo | None:
+        """객체 크기와 올라간 시각. 없으면 None"""
         try:
-            return self.client.head_object(Bucket=self.bucket, Key=key)["ContentLength"]
+            response = self.client.head_object(Bucket=self.bucket, Key=key)
         except ClientError as error:
             if error.response["Error"]["Code"] in MISSING_OBJECT_CODES:
                 return None
             raise
+        return ObjectInfo(response["ContentLength"], response["LastModified"])
+
+    def size(self, key: str) -> int | None:
+        """객체 크기(바이트). 없으면 None"""
+        info = self.info(key)
+        return None if info is None else info.size
 
     def read_start(self, key: str, length: int) -> bytes:
         """객체 앞부분만 읽는다(파일이 length보다 짧으면 있는 만큼)."""

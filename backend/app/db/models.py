@@ -116,7 +116,7 @@ class RecordingRow(Base):
     sample_rate: Mapped[int]
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
-    # complete 때 S3에서 파일을 확인한 시각과, 그때부터 센 보관 기한
+    # complete 때 S3에서 파일을 확인한 시각과 보관 기한. 보관 기한은 S3 수명 주기 규칙처럼 S3에 올라간 시각부터 센다.
     uploaded_at: Mapped[datetime | None] = mapped_column(Timestamp)
     retain_until: Mapped[datetime | None] = mapped_column(Timestamp)
 
