@@ -1,0 +1,45 @@
+{
+  "description": "자동 게인 조절 시험 소리의 정답값. generate.py가 이 값대로 WAV를 만들고, 서버 분석은 녹음을 이 값과 비교한다.",
+  "level_definition": "level_dbfs = 20 × log10(RMS). RMS는 −1~1 표본 값의 제곱평균제곱근이다. 정현파는 진폭 = RMS × √2이다.",
+  "format": {"channels": 1, "sample_width_bytes": 2, "sample_rate": 48000},
+  "frequency_hz": 220.0,
+  "ramp_ms": 10,
+  "files": {
+    "agc_steps": {
+      "description": "3초씩 6 dB 단계로 커진다. 앞뒤 1초는 무음",
+      "duration_s": 23.0,
+      "segments": [
+        {"start_s": 1.0, "end_s": 4.0, "level_dbfs": -45.0},
+        {"start_s": 4.0, "end_s": 7.0, "level_dbfs": -39.0},
+        {"start_s": 7.0, "end_s": 10.0, "level_dbfs": -33.0},
+        {"start_s": 10.0, "end_s": 13.0, "level_dbfs": -27.0},
+        {"start_s": 13.0, "end_s": 16.0, "level_dbfs": -21.0},
+        {"start_s": 16.0, "end_s": 19.0, "level_dbfs": -15.0},
+        {"start_s": 19.0, "end_s": 22.0, "level_dbfs": -9.0}
+      ]
+    },
+    "agc_hold": {
+      "description": "같은 크기로 30초 유지한다. 앞뒤 1초는 무음",
+      "duration_s": 32.0,
+      "segments": [
+        {"start_s": 1.0, "end_s": 31.0, "level_dbfs": -21.0}
+      ]
+    },
+    "agc_toggle": {
+      "description": "1초 켜고 1초 끄기를 10번 되풀이한다. 앞 1초, 뒤 2초는 무음",
+      "duration_s": 22.0,
+      "segments": [
+        {"start_s": 1.0, "end_s": 2.0, "level_dbfs": -21.0},
+        {"start_s": 3.0, "end_s": 4.0, "level_dbfs": -21.0},
+        {"start_s": 5.0, "end_s": 6.0, "level_dbfs": -21.0},
+        {"start_s": 7.0, "end_s": 8.0, "level_dbfs": -21.0},
+        {"start_s": 9.0, "end_s": 10.0, "level_dbfs": -21.0},
+        {"start_s": 11.0, "end_s": 12.0, "level_dbfs": -21.0},
+        {"start_s": 13.0, "end_s": 14.0, "level_dbfs": -21.0},
+        {"start_s": 15.0, "end_s": 16.0, "level_dbfs": -21.0},
+        {"start_s": 17.0, "end_s": 18.0, "level_dbfs": -21.0},
+        {"start_s": 19.0, "end_s": 20.0, "level_dbfs": -21.0}
+      ]
+    }
+  }
+}
