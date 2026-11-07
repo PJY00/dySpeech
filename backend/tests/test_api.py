@@ -10,8 +10,8 @@ USER_ID = str(uuid.uuid4())
 SESSION_ID = str(uuid.uuid4())
 
 
-def test_metric_definitions_come_from_config(api_client):
-    response = api_client.get("/v1/metrics")
+def test_metric_definitions_come_from_config(flow_client):
+    response = flow_client.get("/v1/metrics")
 
     assert response.status_code == 200
     definitions = MetricDefinitions.model_validate(response.json()).metrics
@@ -57,9 +57,9 @@ def test_auth_failure_reason_is_logged_without_keys_or_ids(client_factory, caplo
             assert value not in caplog.text
 
 
-def test_successful_request_logs_nothing(api_client, caplog):
+def test_successful_request_logs_nothing(flow_client, caplog):
     with caplog.at_level(logging.WARNING, logger="app.api.auth"):
-        api_client.get("/v1/metrics")
+        flow_client.get("/v1/metrics")
 
     assert not [record for record in caplog.records if record.name == "app.api.auth"]
 
@@ -81,7 +81,7 @@ def test_health_needs_no_key(client_factory):
 def test_openapi_documents_version_key_and_error_format(api_client):
     schema = api_client.get("/openapi.json").json()
 
-    assert schema["info"]["version"] == "0.2.0"
+    assert schema["info"]["version"] == "0.2.1"
     assert schema["components"]["securitySchemes"]["APIKeyHeader"]["name"] == "X-App-Key"
     assert "HTTPValidationError" not in schema["components"]["schemas"]
     v1_operations = [op for path, ops in schema["paths"].items() if path.startswith("/v1") for op in ops.values()]

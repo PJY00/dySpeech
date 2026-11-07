@@ -13,7 +13,7 @@ ALL_SET = {attribute: f"value-of-{name}" for name, attribute in OPERATING_VARIAB
 
 def make_app(settings: Settings) -> FastAPI:
     app = FastAPI()
-    api_router.register_api(app, settings=lambda: settings)
+    api_router.register_api(app, settings=lambda: settings, worker=lambda: None)
     app.dependency_overrides[get_settings] = lambda: settings
     return app
 
@@ -29,7 +29,7 @@ def test_server_does_not_start_without_operating_variables():
 
 def test_server_starts_when_every_operating_variable_is_set():
     with TestClient(make_app(Settings(_env_file=None, **ALL_SET))) as client:
-        assert client.get("/v1/metrics", headers={"X-App-Key": ALL_SET["app_api_key"]}).status_code == 200
+        assert client.get("/openapi.json").status_code == 200
 
 
 def test_missing_values_are_named_without_printing_values():

@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import Db
 from app.api.errors import INVALID_REQUEST, ApiError, ErrorCode, error_doc
-from app.config.metrics import METRICS, PROGRESS_METRICS
+from app.api.progress import metric_histories
+from app.config.metrics import METRICS
 from app.db.models import MeasurementRow, MeasurementSource, SessionRow, UserRow
-from app.schemas.common import ChangeStatus, Metric, Purpose, SessionStatus, Unit
-from app.schemas.history import DeviceSessionMeasurements, History, MetricHistory
+from app.schemas.common import Metric, Purpose, SessionStatus, Unit
+from app.schemas.history import DeviceSessionMeasurements, History
 from app.schemas.sessions import DeviceMeasurement
 from app.schemas.users import User, UserIn
 
@@ -44,20 +45,6 @@ def put_user(user_id: UUID4, body: UserIn, db: Db) -> User:
         raise ApiError(409, ErrorCode.id_conflict, "같은 user_id에 다른 created_at이 이미 있습니다")
     db.commit()
     return User(id=user.id, created_at=user.created_at)
-
-
-def no_data(metric: Metric) -> MetricHistory:
-    spec = METRICS[metric]
-    return MetricHistory(
-        metric=metric,
-        unit=spec.unit,
-        desired_direction=spec.desired_direction,
-        baseline=None,
-        series=[],
-        latest=None,
-        mdc=None,
-        status=ChangeStatus.no_data,
-    )
 
 
 def recent_device_measurements(db: Session, user_id: UUID) -> list[DeviceSessionMeasurements]:
@@ -106,9 +93,8 @@ def recent_device_measurements(db: Session, user_id: UUID) -> list[DeviceSession
 )
 def get_history(user_id: UUID4, db: Db) -> History:
     require_user(db, user_id)
-    # 서버 지표(공식 값)는 3단계부터 계산한다. 그 전에는 서버 값이 없으므로 모든 진전도 지표가 no_data다.
     return History(
         user_id=user_id,
-        metrics=[no_data(metric) for metric in PROGRESS_METRICS],
+        metrics=metric_histories(db, user_id),
         recent_device_measurements=recent_device_measurements(db, user_id),
     )

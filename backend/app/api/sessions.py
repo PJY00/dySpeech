@@ -2,7 +2,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import UUID4
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -190,7 +190,7 @@ def check_game_runs(db: DbSession, body: CompleteIn, recordings: list[RecordingR
         ),
     },
 )
-def post_complete(session_id: UUID4, body: CompleteIn, db: Db, storage: Storage) -> CompleteAccepted:
+def post_complete(session_id: UUID4, body: CompleteIn, db: Db, storage: Storage, request: Request) -> CompleteAccepted:
     session = find_session(db, session_id, lock=True)
     if session.status is not SessionStatus.open:
         # 이미 받은 complete다. 다시 저장하지 않고 지금 상태를 돌려준다.
@@ -249,6 +249,10 @@ def post_complete(session_id: UUID4, body: CompleteIn, db: Db, storage: Storage)
         raise RequestRuleError(
             [FieldError(path="body.game_runs", reason="다른 세션에 이미 있는 game_run_id가 있습니다")]
         ) from error
+    # 처리 작업이 기다리지 않고 바로 계산을 시작하게 깨운다.
+    worker = getattr(request.app.state, "processing_worker", None)
+    if worker is not None:
+        worker.wake()
     return CompleteAccepted(session_id=session_id, status=session.status)
 
 
