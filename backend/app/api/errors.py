@@ -25,6 +25,7 @@ class ErrorCode(StrEnum):
     recording_not_found = "RECORDING_NOT_FOUND"
     id_conflict = "ID_CONFLICT"
     missing_recordings = "MISSING_RECORDINGS"
+    payload_too_large = "PAYLOAD_TOO_LARGE"
     not_found = "NOT_FOUND"
     method_not_allowed = "METHOD_NOT_ALLOWED"
     internal_error = "INTERNAL_ERROR"

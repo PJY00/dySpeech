@@ -60,6 +60,16 @@
               }
             }
           },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "409": {
             "description": "같은 user_id에 다른 내용이 이미 있음",
             "content": {
@@ -120,6 +130,16 @@
           },
           "401": {
             "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
             "content": {
               "application/json": {
                 "schema": {
@@ -206,6 +226,16 @@
               }
             }
           },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "user_id의 사용자 없음",
             "content": {
@@ -274,6 +304,16 @@
           },
           "401": {
             "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
             "content": {
               "application/json": {
                 "schema": {
@@ -352,6 +392,16 @@
           },
           "401": {
             "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
             "content": {
               "application/json": {
                 "schema": {
@@ -448,6 +498,16 @@
               }
             }
           },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "세션 없음",
             "content": {
@@ -526,6 +586,16 @@
               }
             }
           },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "녹음 없음, 또는 보관 기한이 지남",
             "content": {
@@ -569,6 +639,16 @@
           },
           "401": {
             "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
             "content": {
               "application/json": {
                 "schema": {
