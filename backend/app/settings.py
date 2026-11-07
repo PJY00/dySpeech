@@ -45,11 +45,24 @@ OPERATING_VARIABLES = {
 
 
 def missing_operating_variables(settings: Settings) -> list[str]:
+    """
+    설정에 빠진 운영 변수 이름을 모음
+    입력: settings (서버 설정)
+    출력: 값이 없는 운영 변수 이름 목록 (DATABASE_URL, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET, APP_API_KEY 중)
+    알고리즘
+    1. OPERATING_VARIABLES의 변수마다 설정 속성이 None이면 이름을 넣음
+    """
     return [name for name, attribute in OPERATING_VARIABLES.items() if getattr(settings, attribute) is None]
 
 
 def require_operating_settings(settings: Settings) -> None:
-    """빠진 운영 변수가 있으면 이름만 알려주고 멈춘다(값은 출력하지 않는다)."""
+    """
+    빠진 운영 변수가 있으면 이름만 알려주고 멈춤
+    입력: settings (서버 설정)
+    출력: 없음. 빠진 변수가 있으면 그 이름을 담은 RuntimeError를 일으킴(값은 출력하지 않음)
+    알고리즘
+    1. missing_operating_variables로 빠진 변수를 찾고, 있으면 "운영 변수가 없습니다: …. backend/.env나 배포 서버의 환경 변수에 넣으세요" 오류를 일으킴
+    """
     missing = missing_operating_variables(settings)
     if missing:
         raise RuntimeError(f"운영 변수가 없습니다: {', '.join(missing)}. backend/.env나 배포 서버의 환경 변수에 넣으세요")
@@ -57,5 +70,11 @@ def require_operating_settings(settings: Settings) -> None:
 
 @lru_cache
 def get_settings() -> Settings:
-    """요청마다 .env를 다시 읽지 않도록 한 번 읽은 값을 쓴다. 테스트는 FastAPI 의존성 덮어쓰기로 바꾼다."""
+    """
+    서버 설정을 한 번만 읽어 다시 씀
+    입력: 없음 (환경 변수를 먼저 읽고, 없으면 backend/.env)
+    출력: 서버 설정(Settings). 요청마다 .env를 다시 읽지 않도록 lru_cache로 하나만 둠. 테스트는 FastAPI 의존성 덮어쓰기로 바꿈
+    알고리즘
+    1. 처음 부를 때 Settings()를 만들고, 이후에는 같은 값을 돌려줌
+    """
     return Settings()

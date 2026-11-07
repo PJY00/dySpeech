@@ -22,6 +22,19 @@ READING_ERROR_RATIO = 0.3
 
 
 def count_nuclei(samples: np.ndarray) -> int:
+    """
+    평가 문장 녹음에서 음절 핵(음량 정점) 수를 셈
+    입력: samples (16 kHz 표본, −1~1)
+    출력: 검출 음절 수(개). 보조 확인용이며 말속도 계산에는 쓰지 않음
+    알고리즘
+    1. de Jong과 Wempe의 Praat 스크립트 v2(2010)와 같은 방법·기본값을 씀. 표본으로 Praat Sound(16000 Hz)를 만들고 음량 곡선(To Intensity: 최저 음높이 50 Hz, 시간 간격 자동, 평균 빼기)을 구함
+    2. 음량 곡선의 최소·최대(포물선 보간)와 99백분위를 구하고, 정점 문턱 = max(99백분위 − 25 dB, 최소 음량), 무음 구분 문턱 = −25 dB − (최대 − 99백분위)로 정함
+    3. 무음 구분(To TextGrid (silences): 위 무음 구분 문턱, 최소 휴지 0.3초, 최소 소리 구간 0.1초)으로 "silent"·"sounding" 구간을 나눔
+    4. 음량 곡선의 극댓값(To PointProcess (extrema), Sinc70 보간)을 찾고, 그 시각의 음량(Cubic 보간)이 정점 문턱보다 큰 정점만 남김
+    5. 이웃한 두 정점 사이의 최소 음량(골)과 앞 정점 음량의 차가 2 dB보다 크면 앞 정점을 남김. 마지막 정점은 세지 않음(원 스크립트와 같음)
+    6. 기본주파수를 구함(To Pitch (ac): 시간 간격 0.02초, 범위 30~450 Hz, 후보 4개, 매우 정확 끔, 무음 문턱 0.03, 유성 문턱 0.25, 옥타브 비용 0.01, 옥타브 도약 비용 0.35, 유성·무성 전환 비용 0.25)
+    7. 남은 정점 중 그 시각에 기본주파수가 있고 무음 구분에서 "sounding" 구간인 것만 셈
+    """
     sound = parselmouth.Sound(samples, sampling_frequency=RATE)
     intensity = call(sound, "To Intensity", 50, 0, "yes")
     min_int = call(intensity, "Get minimum", 0, 0, "Parabolic")
@@ -57,4 +70,11 @@ def count_nuclei(samples: np.ndarray) -> int:
 
 
 def possible_reading_error(detected: int, expected: int) -> bool:
+    """
+    검출 음절 수가 정답과 크게 달라 읽기 오류일 수 있는지 판정함
+    입력: detected (검출 음절 수), expected (정답 음절 수)
+    출력: |D(검출 음절 수) − N(정답 음절 수)| ≥ 0.3 × N(정답 음절 수)이면 참
+    알고리즘
+    1. 두 값의 차의 절댓값이 정답 음절 수의 30%(READING_ERROR_RATIO = 0.3) 이상인지 봄. 검출 음절 수 오차율을 확인할 때까지 이 판정은 쓰지 않음
+    """
     return abs(detected - expected) >= READING_ERROR_RATIO * expected

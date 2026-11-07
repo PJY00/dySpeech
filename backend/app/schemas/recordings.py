@@ -35,6 +35,14 @@ class RecordingIn(ContractModel):
 
     @model_validator(mode="after")
     def check_kind_fields(self) -> Self:
+        """
+        녹음 종류마다 꼭 넣는 필드가 있고 다른 종류의 필드는 없는지 검사함
+        입력: 없음 (모델 자신: kind, trial_no, sentence_id, game_run_id, agc_signal)
+        출력: 모델 자신. 어긋나면 PydanticCustomError(kind_field_missing 또는 kind_field_not_allowed)를 일으킴. ctx의 field는 422 응답에서 경로를 문제 필드까지 잇는 데 쓰임
+        알고리즘
+        1. FIELD_BY_KIND에서 이 종류에 꼭 있어야 하는 필드를 찾음 (mpt_trial → trial_no, eval_sentence → sentence_id, game → game_run_id, agc_tone → agc_signal, 나머지 종류는 없음)
+        2. 종류별 필드 네 개를 차례로 봄. 꼭 있어야 하는 필드가 없으면 "{kind} 녹음에는 {field} 값이 필요합니다", 다른 종류의 필드가 있으면 "{kind} 녹음에는 {field} 값을 넣지 않습니다" 오류를 일으킴(처음 걸린 하나만)
+        """
         # ctx의 field는 422 응답에서 경로를 문제 필드까지 잇는 데 쓴다.
         required = FIELD_BY_KIND.get(self.kind)
         context = {"kind": str(self.kind)}
@@ -56,6 +64,13 @@ class UploadUrlsIn(ContractModel):
 
     @model_validator(mode="after")
     def check_unique_ids(self) -> Self:
+        """
+        업로드 URL 요청 안에서 녹음 ID가 겹치지 않는지 검사함
+        입력: 없음 (모델 자신: recordings)
+        출력: 모델 자신. 겹치면 require_unique의 검사 오류(경로 body.recordings)를 일으킴
+        알고리즘
+        1. 녹음 ID들을 require_unique로 검사함
+        """
         require_unique((r.recording_id for r in self.recordings), "recordings", "recording_id")
         return self
 

@@ -24,6 +24,14 @@ METRIC_ORDER = {metric: index for index, metric in enumerate(METRICS)}
 
 
 def require_user(db: Session, user_id: UUID) -> UserRow:
+    """
+    사용자 ID로 사용자 행을 찾고, 없으면 404 오류를 냄
+    입력: db (DB 세션), user_id (사용자 ID, UUID)
+    출력: 사용자 행(UserRow). 없으면 ApiError(404, USER_NOT_FOUND)를 일으킴
+    알고리즘
+    1. DB에서 기본 키로 사용자 행을 읽음
+    2. 없으면 404 USER_NOT_FOUND 오류를 일으키고, 있으면 그 행을 돌려줌
+    """
     user = db.get(UserRow, user_id)
     if user is None:
         raise ApiError(404, ErrorCode.user_not_found, "사용자가 없습니다. 사용자 등록부터 하세요")
@@ -36,6 +44,15 @@ def require_user(db: Session, user_id: UUID) -> UserRow:
     responses={409: error_doc("같은 user_id에 다른 내용이 이미 있음"), **INVALID_REQUEST},
 )
 def put_user(user_id: UUID4, body: UserIn, db: Db) -> User:
+    """\f
+    PUT /v1/users/{user_id}: 사용자를 등록하고, 같은 ID로 다시 오면 처음 값과 비교함
+    입력: user_id (앱이 만든 사용자 ID, UUID v4), body (요청 본문: created_at 앱에서 사용자를 만든 시각), db (요청마다 여는 DB 세션)
+    출력: 등록된 사용자(id, created_at). DB users 표에 행을 넣고 커밋함. 같은 ID에 다른 created_at이 있으면 409 ID_CONFLICT
+    알고리즘
+    1. 같은 ID가 동시에 와도 한 번만 들어가도록, 이미 있으면 넣지 않는 INSERT(ON CONFLICT DO NOTHING)를 실행함
+    2. 그 ID의 행을 다시 읽어 created_at이 요청 값과 다르면 409 ID_CONFLICT 오류를 일으킴
+    3. 커밋하고 저장된 값을 돌려줌
+    """
     # 같은 ID가 동시에 와도 한 번만 들어가도록, 이미 있으면 넣지 않고 있는 값과 비교한다.
     db.execute(
         insert(UserRow).values(id=user_id, created_at=body.created_at).on_conflict_do_nothing(index_elements=[UserRow.id])
@@ -48,7 +65,15 @@ def put_user(user_id: UUID4, body: UserIn, db: Db) -> User:
 
 
 def recent_device_measurements(db: Session, user_id: UUID) -> list[DeviceSessionMeasurements]:
-    """complete를 받은 훈련 세션 중 기기 값이 있는 최근 회차들. 오래된 회차부터"""
+    """
+    complete를 받은 훈련 세션 중 기기 값이 있는 최근 회차들의 기기 지표를 모음
+    입력: db (DB 세션), user_id (사용자 ID)
+    출력: 회차별 기기 지표 목록 (최대 RECENT_DEVICE_SESSIONS = 3회차, 오래된 회차부터. 회차 안의 지표는 METRICS 순서)
+    알고리즘
+    1. 이 사용자의 훈련 세션 중 상태가 open이 아니고(complete를 받음) 기기 측정값이 하나라도 있는 세션을, 시작 시각·ID 내림차순으로 3개까지 고름
+    2. 고른 세션들의 기기 측정값을 한 번에 읽어 세션별로 묶음
+    3. 세션을 오래된 회차부터 놓고, 세션마다 지표를 METRICS 순서로 정렬해 돌려줌
+    """
     has_device_values = exists().where(
         MeasurementRow.session_id == SessionRow.id, MeasurementRow.source == MeasurementSource.device
     )
@@ -92,6 +117,15 @@ def recent_device_measurements(db: Session, user_id: UUID) -> list[DeviceSession
     responses={404: error_doc("사용자 없음"), **INVALID_REQUEST},
 )
 def get_history(user_id: UUID4, db: Db) -> History:
+    """\f
+    GET /v1/users/{user_id}/history: 사용자의 진전도와 변화 판정, 최근 기기 값을 돌려줌
+    입력: user_id (사용자 ID, UUID v4), db (요청마다 여는 DB 세션)
+    출력: 진전도 응답(user_id, 지표별 진전도 metrics, recent_device_measurements). 없는 사용자면 404 USER_NOT_FOUND
+    알고리즘
+    1. 사용자가 있는지 확인함(require_user)
+    2. 지표별 기준선·회차 값·판정을 metric_histories로 만듦
+    3. 최근 3회차 기기 값을 recent_device_measurements로 모아 함께 돌려줌
+    """
     require_user(db, user_id)
     return History(
         user_id=user_id,

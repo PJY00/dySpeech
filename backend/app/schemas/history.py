@@ -37,6 +37,14 @@ class MetricHistory(ContractModel):
 
     @model_validator(mode="after")
     def check_no_data(self) -> Self:
+        """
+        지표 진전도의 값 유무와 no_data 판정이 서로 맞는지 검사함
+        입력: 없음 (모델 자신: baseline, latest, series, status)
+        출력: 모델 자신. 어긋나면 ValueError를 일으킴
+        알고리즘
+        1. baseline·latest·series는 모두 비었거나 모두 있어야 함. 일부만 있으면 ValueError
+        2. 값이 없을 때만 status가 no_data여야 함. 그 반대도 같음. 어긋나면 ValueError
+        """
         # 값이 없으면 baseline·latest가 null, series가 빈 목록이고 status는 no_data다. 그 반대도 같다.
         present = [self.baseline is not None, self.latest is not None, bool(self.series)]
         if any(present) and not all(present):
@@ -61,6 +69,13 @@ class History(ContractModel):
 
     @model_validator(mode="after")
     def check_metric_order(self) -> Self:
+        """
+        진전도 응답의 지표 목록이 진전도 지표를 정해진 순서로 모두 담았는지 검사함
+        입력: 없음 (모델 자신: metrics)
+        출력: 모델 자신. 순서나 개수가 다르면 ValueError를 일으킴
+        알고리즘
+        1. metrics의 지표 이름 목록이 PROGRESS_METRICS와 같은지 비교함
+        """
         if [m.metric for m in self.metrics] != PROGRESS_METRICS:
             raise ValueError(f"metrics는 {', '.join(PROGRESS_METRICS)} 순서로 모두 있어야 합니다")
         return self

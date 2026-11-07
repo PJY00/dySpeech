@@ -44,7 +44,13 @@ class MeasurementSource(StrEnum):
 
 
 def str_enum(enum: type[StrEnum], name: str) -> Enum:
-    """PostgreSQL 자체 enum 타입 대신 문자열과 CHECK 제약으로 둔다. 값이 늘 때 마이그레이션이 단순하다."""
+    """
+    StrEnum 열을 PostgreSQL 자체 enum 타입 대신 문자열과 CHECK 제약으로 정의함
+    입력: enum (열 값의 StrEnum 형), name (제약 이름에 쓰는 enum 이름)
+    출력: SQLAlchemy Enum 열 형식 (자체 enum 아님, CHECK 제약을 만듦, 길이 32자, 저장 값은 멤버의 value, 문자열 값도 검사함)
+    알고리즘
+    1. native_enum=False, create_constraint=True로 Enum을 만들어 돌려줌. 값이 늘 때 마이그레이션이 단순함
+    """
     return Enum(
         enum,
         name=name,
@@ -57,7 +63,13 @@ def str_enum(enum: type[StrEnum], name: str) -> Enum:
 
 
 def children(back_populates: str):
-    """하위 행. 지울 때는 DB의 ON DELETE CASCADE에 맡겨, 하위 행을 불러오지 않는다."""
+    """
+    상위 행에서 하위 행 목록으로 가는 관계를 정의함
+    입력: back_populates (하위 모델 쪽의 짝이 되는 관계 이름)
+    출력: SQLAlchemy 관계 (cascade "all, delete-orphan", passive_deletes=True)
+    알고리즘
+    1. 지울 때는 DB의 ON DELETE CASCADE에 맡겨 하위 행을 불러오지 않도록, passive_deletes를 켠 관계를 만들어 돌려줌
+    """
     return relationship(back_populates=back_populates, cascade="all, delete-orphan", passive_deletes=True)
 
 

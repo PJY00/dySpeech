@@ -8,6 +8,13 @@ from pydantic_core import PydanticCustomError
 
 
 def _to_utc(value: datetime) -> datetime:
+    """
+    시간대가 있는 시각을 UTC로 바꿈
+    입력: value (시간대가 있는 시각)
+    출력: 같은 순간의 UTC 시각. 응답에는 "...Z"로 나감
+    알고리즘
+    1. astimezone(UTC)로 바꿈. UtcDatetime 형식이 시간대 검사 뒤에 이 함수를 부름
+    """
     return value.astimezone(UTC)
 
 
@@ -21,7 +28,14 @@ ClientMeta = Annotated[dict[str, JsonValue], Field(default_factory=dict)]
 
 
 def require_unique(values: Iterable[Hashable], field: str, item: str) -> None:
-    """목록 field 안에서 item 값이 겹치면 거부한다. ctx의 field는 422 응답에서 경로를 목록까지 잇는 데 쓴다."""
+    """
+    목록 안에서 같은 값이 겹치면 검사 오류를 냄
+    입력: values (검사할 값들), field (목록 필드 이름, 예: recordings), item (항목 필드 이름, 예: recording_id)
+    출력: 없음. 겹치면 PydanticCustomError("duplicate", "{field}의 {item} 값이 겹칩니다: …")를 일으킴. ctx의 field는 422 응답에서 경로를 목록까지 잇는 데 쓰임
+    알고리즘
+    1. 값을 차례로 보며 앞에서 이미 나온 값이면 겹친 값으로 모음
+    2. 겹친 값이 있으면 정렬해 쉼표로 이어 오류를 일으킴
+    """
     seen: set[Hashable] = set()
     duplicates: set[str] = set()
     for value in values:

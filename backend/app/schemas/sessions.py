@@ -70,6 +70,13 @@ class DeviceMeasurement(ContractModel):
 
     @model_validator(mode="after")
     def check_unit(self) -> Self:
+        """
+        기기 지표의 단위가 그 지표의 정해진 단위와 같은지 검사함
+        입력: 없음 (모델 자신: metric, unit)
+        출력: 모델 자신. 다르면 PydanticCustomError("unit_mismatch", "{metric}의 단위는 {expected}여야 합니다")를 일으킴. ctx의 field "unit"은 422 응답에서 경로를 unit 필드까지 잇는 데 쓰임
+        알고리즘
+        1. METRICS에서 그 지표의 단위를 찾아 요청 단위와 비교함
+        """
         expected = METRICS[self.metric].unit
         if self.unit != expected:
             raise PydanticCustomError(
@@ -102,6 +109,14 @@ class CompleteIn(ContractModel):
 
     @model_validator(mode="after")
     def check_unique_items(self) -> Self:
+        """
+        complete 요청 안에서 기기 지표 이름과 게임 라운드 ID가 겹치지 않는지 검사함
+        입력: 없음 (모델 자신: device_measurements, game_runs)
+        출력: 모델 자신. 겹치면 require_unique의 검사 오류(경로 body.device_measurements 또는 body.game_runs)를 일으킴
+        알고리즘
+        1. device_measurements의 metric을 require_unique로 검사함
+        2. game_runs의 game_run_id를 require_unique로 검사함
+        """
         require_unique((m.metric for m in self.device_measurements), "device_measurements", "metric")
         require_unique((g.game_run_id for g in self.game_runs), "game_runs", "game_run_id")
         return self
