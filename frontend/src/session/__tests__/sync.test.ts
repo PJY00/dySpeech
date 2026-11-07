@@ -16,7 +16,7 @@ interface Rig {
   module: SessionModule;
 }
 
-function rig(options: { store?: MemoryStore; server?: FakeServer; appKey?: string; configured?: boolean } = {}): Rig {
+function rig(options: { store?: MemoryStore; server?: FakeServer; appKey?: string; configured?: boolean; recordingsDir?: string } = {}): Rig {
   const server = options.server ?? new FakeServer();
   const store = options.store ?? new MemoryStore();
   const sleeps: number[] = [];
@@ -29,6 +29,7 @@ function rig(options: { store?: MemoryStore; server?: FakeServer; appKey?: strin
       sleeps.push(ms);
     },
     log: () => {},
+    recordingsDir: options.recordingsDir,
   });
   return { server, store, sleeps, module };
 }
@@ -342,4 +343,31 @@ test('처리 중이 오래가면 기다리기를 멈추고 processing으로 돌�
   assert.equal(clock, 12000);
   assert.equal(server.count('GET', /\/v1\/sessions\//), 4);
   assert.ok(seen.every((x) => x === 'processing'));
+});
+
+test('앱 시작 정리: 어느 세션에도 없는 WAV(녹음 도중 꺼져 남은 파일)만 지운다', async () => {
+  const store = new MemoryStore();
+  const a = rig({ store, recordingsDir: 'file:///rec' });
+  const s = await a.module.startSession('training');
+  const kept = wavFile(store, 2);
+  await s.addRecording({ kind: 'noise_floor', fileUri: kept });
+  store.files.set('file:///rec/orphan.wav', new Uint8Array(10));
+  store.files.set('file:///rec/note.txt', new Uint8Array(1));
+  store.files.set('file:///other/elsewhere.wav', new Uint8Array(1));
+  const b = rig({ store, recordingsDir: 'file:///rec' });
+  const { sweptFiles, unfinished } = await b.module.resumePending();
+  assert.equal(sweptFiles, 1);
+  assert.ok(!store.files.has('file:///rec/orphan.wav'));
+  assert.ok(store.files.has(kept), '세션에 들어간 녹음은 남긴다');
+  assert.ok(store.files.has('file:///rec/note.txt'));
+  assert.ok(store.files.has('file:///other/elsewhere.wav'), '녹음 폴더 밖은 건드리지 않는다');
+  assert.equal(unfinished.length, 1);
+  // URI 표기가 달라도(file:// 뒤 / 개수, 퍼센트 인코딩) 같은 파일로 본다
+  store.files.set('file:///rec/%ED%95%9C.wav', new Uint8Array(1));
+  const t = await b.module.startSession('training');
+  store.files.set('file:///rec/한.wav', encodeWav(new Float32Array(4800), 48000));
+  await t.addRecording({ kind: 'noise_floor', fileUri: 'file:///rec/한.wav' });
+  store.files.delete('file:///rec/한.wav');
+  const c = rig({ store, recordingsDir: 'file:///rec' });
+  assert.equal((await c.module.resumePending()).sweptFiles, 0);
 });

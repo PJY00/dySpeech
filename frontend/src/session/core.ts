@@ -4,6 +4,7 @@ import type { ApiClient } from './api';
 import { ApiError } from './api';
 import { Repo } from './records';
 import type { DeviceInfo, RecordingRecord, SessionRecord, UserRecord } from './records';
+import { normalizeFileUri } from './store';
 import type { Store } from './store';
 import { errorInfo, Syncer } from './sync';
 import type { Logger } from './sync';
@@ -82,12 +83,17 @@ export interface SessionModuleDeps {
   pollIntervalMs?: number;
   pollTimeoutMs?: number;
   uuid?: () => string;
+  /** 녹음 파일 폴더 URI. 주면 resumePending이 어느 세션에도 없는 WAV(녹음 도중 앱이 꺼져 남은 파일)를 지운다 */
+  recordingsDir?: string;
 }
 
 export interface SessionModule {
   startSession(purpose: Purpose, options?: { clientMeta?: Record<string, unknown> }): Promise<Session>;
-  /** 앱 시작·포그라운드 때: 못 보낸 세션을 이어서 보내고, complete 전에 멈춘 세션을 돌려준다 */
-  resumePending(): Promise<{ resumed: number; unfinished: Session[] }>;
+  /**
+   * 앱 시작 때 한 번: 못 보낸 세션을 이어서 보내고, complete 전에 멈춘 세션을 돌려준다.
+   * 어느 세션에도 없는 녹음 파일(녹음 도중 앱이 꺼져 남은 WAV)도 지운다. 녹음 중에는 부르지 않는다
+   */
+  resumePending(): Promise<{ resumed: number; unfinished: Session[]; sweptFiles: number }>;
   /** 보내기와 처리 중 세션 상태 확인을 지금 하고 끝날 때까지 기다린다 */
   syncNow(): Promise<void>;
   getLatestBaselines(): Promise<Baselines | null>;
@@ -152,6 +158,27 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
       const rec = await repo.loadSession(id);
       if (rec && rec.state === 'processing') await syncer.refresh(id);
     }
+  }
+
+  /** 어느 세션 문서에도 없는 .wav를 지운다. 지운 개수를 돌려준다 */
+  async function sweepOrphans(): Promise<number> {
+    if (!deps.recordingsDir) return 0;
+    const referenced = new Set<string>();
+    for (const id of await repo.listSessionIds()) {
+      const rec = await repo.loadSession(id);
+      for (const r of rec?.recordings ?? []) referenced.add(normalizeFileUri(r.fileUri));
+    }
+    let swept = 0;
+    for (const uri of await deps.store.listFiles(deps.recordingsDir)) {
+      if (!uri.toLowerCase().endsWith('.wav') || referenced.has(normalizeFileUri(uri))) continue;
+      try {
+        await deps.store.deleteFile(uri);
+        swept += 1;
+      } catch (e) {
+        log('sweep_failed', { uri, message: String(e) });
+      }
+    }
+    return swept;
   }
 
   async function prune(): Promise<void> {
@@ -366,13 +393,14 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
         }
       }
       unfinished.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-      log('resume', { resumed, unfinished: unfinished.length });
+      const sweptFiles = await sweepOrphans();
+      log('resume', { resumed, unfinished: unfinished.length, swept_files: sweptFiles });
       void (async () => {
         await syncer.kick();
         await refreshProcessing();
         await prune();
       })().catch((e) => log('resume_error', { message: String(e) }));
-      return { resumed, unfinished };
+      return { resumed, unfinished, sweptFiles };
     },
 
     async syncNow() {

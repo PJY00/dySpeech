@@ -5,6 +5,7 @@
 import { AudioManager, AudioRecorder, BitDepth, FileDirectory, FileFormat, FilePreset } from 'react-native-audio-api';
 import type { AudioRecorderFileOptions } from 'react-native-audio-api';
 
+import { RECORDINGS_SUBDIR } from '../session/store';
 import { bufferLevelDbfs, VoiceBandFilter } from './filters';
 import { classifyInputs } from './inputs';
 
@@ -18,7 +19,7 @@ export const WAV_FILE_OPTIONS: AudioRecorderFileOptions = {
   channelCount: 1,
   preset: { ...FilePreset.High, sampleRate: RECORDING_SAMPLE_RATE, bitDepth: BitDepth.Bit16 },
   directory: FileDirectory.Document,
-  subDirectory: 'dyspeech/recordings',
+  subDirectory: RECORDINGS_SUBDIR,
   fileNamePrefix: 'rec',
   rotateIntervalBytes: 0,
 };

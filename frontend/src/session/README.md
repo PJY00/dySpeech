@@ -24,6 +24,7 @@ import type { Baselines, GameRun } from '../session';
 import { MeasurementBlock } from '../measurement';
 
 // 앱 시작 때 한 번: 못 보낸 세션 이어서 보내기 + 앞으로 올 때마다 다시 보내기
+// resumePending은 어느 세션에도 없는 녹음 파일(녹음 도중 앱이 꺼져 남은 WAV)도 지운다. 녹음 중에는 부르지 않는다
 const { unfinished } = await resumePending(); // complete 전에 멈춘 세션: complete() 또는 discard()
 const stopAutoSync = startAutoSync();
 
