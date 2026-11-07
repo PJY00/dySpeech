@@ -10,6 +10,8 @@ from app.api.limits import MAX_BODY_BYTES, BodySizeLimitMiddleware
 
 COMPLETE_PATH = f"/v1/sessions/{uuid.uuid4()}/complete"
 TOO_LARGE = {"error": {"code": "PAYLOAD_TOO_LARGE", "message": "요청 본문이 1 MB를 넘습니다"}}
+# 상한 안의 본문은 처리기까지 간다. 등록하지 않은 세션이라 404가 나오면 본문을 끝까지 읽고 검증을 통과한 것이다.
+REACHED_HANDLER = 404
 
 
 def complete_body(size: int) -> bytes:
@@ -29,8 +31,11 @@ def chunks(body: bytes, size: int = 64 * 1024):
         yield body[start : start + size]
 
 
-def test_body_at_the_limit_is_accepted(api_client):
-    assert post(api_client, complete_body(MAX_BODY_BYTES)).status_code == 202
+def test_body_at_the_limit_is_accepted(flow_client):
+    response = post(flow_client, complete_body(MAX_BODY_BYTES))
+
+    assert response.status_code == REACHED_HANDLER
+    assert response.json()["error"]["code"] == "SESSION_NOT_FOUND"
 
 
 def test_body_over_the_limit_is_413(api_client):
@@ -40,10 +45,10 @@ def test_body_over_the_limit_is_413(api_client):
     assert response.json() == TOO_LARGE
 
 
-@pytest.mark.parametrize(("size", "status"), [(MAX_BODY_BYTES, 202), (MAX_BODY_BYTES + 1, 413)])
-def test_streamed_body_without_length_is_counted(api_client, size, status):
+@pytest.mark.parametrize(("size", "status"), [(MAX_BODY_BYTES, REACHED_HANDLER), (MAX_BODY_BYTES + 1, 413)])
+def test_streamed_body_without_length_is_counted(flow_client, size, status):
     # 길이를 알리지 않고 나눠 보내는 요청도 읽으면서 센다.
-    response = api_client.post(COMPLETE_PATH, content=chunks(complete_body(size)), headers={"Content-Type": "application/json"})
+    response = flow_client.post(COMPLETE_PATH, content=chunks(complete_body(size)), headers={"Content-Type": "application/json"})
 
     assert response.status_code == status
 

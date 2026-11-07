@@ -1,6 +1,6 @@
 # dySpeech API 명세
 
-- 버전: **0.1.0** (서버의 `/openapi.json`에서 `info.version`)
+- 버전: **0.2.0** (서버의 `/openapi.json`에서 `info.version`)
 - 대상: 앱 개발자. 이 문서와 [`openapi.json`](openapi.json)이 서버와 앱이 맞춰야 할 기준이다.
 - 바뀐 내용은 [`api-changelog.md`](api-changelog.md)에 적는다. 지표의 정의와 계산 방법은 [`metrics-spec.md`](metrics-spec.md)에 있다.
 
@@ -28,18 +28,19 @@
 | `GET /v1/recordings/{recording_id}/url` | 녹음을 들어 볼 수 있는 URL(10분 유효) |
 | `GET /health` | 서버 상태 확인. 앱 키가 필요 없다 |
 
-- 기준 주소: 임시 서버 주소는 배포 뒤 따로 알려준다. 로컬 서버는 `http://127.0.0.1:8000`이다.
+- 기준 주소: 서버 주소는 따로 알려준다. 로컬 서버는 `http://127.0.0.1:8000`이다.
 - 요청을 직접 보내 볼 수 있는 문서 화면: `{기준 주소}/docs`(앱 키 없이 열린다. 오른쪽 위 Authorize에 키를 넣으면 `/v1` 요청도 보낼 수 있다)
 
-### 1.1 지금 임시 서버에서 다른 점
+### 1.1 지금 서버에서 아직 되지 않는 것
 
-임시 서버는 앱 개발을 먼저 시작할 수 있도록 **예시 응답만** 돌려준다.
+0.2.0부터 서버는 요청을 실제로 저장하고, 업로드 URL로 S3에 실제로 올라간다. 404·409·413·422는 이 문서대로 돌아온다. 0.1.0의 임시 서버(예시 응답만 돌려줌)는 0.2.0 배포로 끝난다.
 
-- 저장하지 않는다. 요청에 있는 ID와 값은 그대로 돌려주고, 나머지는 형식을 보여주기 위한 고정 값이다.
-- 업로드 URL은 예시용 도메인(`s3.example.com`)이라 **실제로 올라가지 않는다.** 실제 업로드는 다음 단계 서버부터 된다.
-- 저장된 것이 없으므로 404와 409는 돌려주지 않는다. 401과 422는 실제 서버와 같다.
-- `GET /v1/sessions/{session_id}`는 항상 처리가 끝난(`done`) 예시를, 진전도는 고정 예시를 돌려준다.
-- `GET /v1/metrics`는 실제 지표 정의를 돌려준다. 최소 측정 가능 변화량은 아직 정해지지 않아 `null`이다.
+서버 지표(공식 값) 계산은 아직 없다. 응답 형식은 그대로이고 값만 비어 있다.
+
+- complete 뒤 세션 `status`는 `processing`에 머문다. `done`·`failed`로 바뀌는 것은 서버 지표 계산이 들어간 뒤다.
+- `GET /v1/sessions/{session_id}`의 `server_measurements`는 빈 목록이다.
+- 진전도의 지표 8개는 모두 `no_data`다. `recent_device_measurements`에는 앱이 보낸 기기 값이 실제로 들어간다.
+- `GET /v1/metrics`의 최소 측정 가능 변화량은 아직 정해지지 않아 `null`이다.
 
 ---
 
@@ -83,12 +84,15 @@
 
 - API 명세에 없는 필드를 보내면 422다. 필드 이름 오타를 바로 찾기 위해서다.
 - 명세를 바꾸지 않고 부가 정보를 보내려면 세션 등록과 complete 요청의 `client_meta`(자유 JSON 객체, 선택)에 넣는다. 서버는 저장만 하고 해석하지 않는다.
-- `client_meta`, 게임 기록의 `params`·`result`를 포함한 요청 본문 전체는 1 MB를 넘을 수 없다(다음 단계부터, 3.5).
+- `client_meta`, 게임 기록의 `params`·`result`를 포함한 요청 본문 전체는 1 MB를 넘을 수 없다(3.5).
 
 ### 2.6 같은 요청을 다시 보낼 때
 
 - 같은 ID에 같은 내용으로 다시 보내면 처음과 같은 결과(200)를 돌려준다. 처음 등록이든 반복이든 상태 코드는 200이다.
 - 같은 ID에 다른 내용을 보내면 409(`ID_CONFLICT`)다.
+  - 세션 등록의 `client_meta`는 비교하지 않는다. 처음 받은 값을 둔다.
+  - 녹음의 파일 정보(`duration_s`, `sample_rate`, `size_bytes`)는 complete 전에는 바꿔 보내도 된다(4.3).
+- 세션 등록을 다시 보내면 지금 상태(`status`)가 담긴 세션을 돌려준다.
 - complete를 여러 번 보내도 중복 저장하지 않는다.
 - 그래서 네트워크가 끊기면 처음부터 다시 보내도 된다.
 
@@ -119,9 +123,9 @@
 | 405 | `METHOD_NOT_ALLOWED` | 그 경로에 없는 메서드 | 메서드를 확인한다 |
 | 409 | `ID_CONFLICT` | 같은 ID에 다른 내용이 이미 있음 | 새 ID를 만들거나 처음 보낸 내용을 다시 보낸다 |
 | 409 | `MISSING_RECORDINGS` | complete 때 올라오지 않은 녹음이 있음 | `missing_recording_ids`의 파일만 다시 올리고 complete를 다시 보낸다 |
-| 413 | `PAYLOAD_TOO_LARGE` | (다음 단계부터) 요청 본문이 1 MB를 넘음 | 3.5 |
+| 413 | `PAYLOAD_TOO_LARGE` | 요청 본문이 1 MB를 넘음 | 3.5 |
 | 422 | `VALIDATION_ERROR` | 요청이 API 명세와 다름 | `fields`를 보고 앱을 고친다. 그대로 다시 보내면 안 된다 |
-| 422 | `INVALID_RECORDING_FORMAT` | (다음 단계부터) 올린 WAV가 규격과 다름 | 3.4 |
+| 422 | `INVALID_RECORDING_FORMAT` | 올린 WAV가 규격과 다름 | 3.4 |
 | 500 | `INTERNAL_ERROR` | 서버 문제 | 잠시 뒤 다시 보낸다 |
 
 ### 3.1 401 예시
@@ -169,10 +173,14 @@
 }
 ```
 
-### 3.4 다음 단계부터 생기는 응답: WAV 규격 422
+### 3.4 WAV 규격 422
 
-실제 서버(다음 단계)부터 complete 때 올라온 WAV의 헤더를 읽어 규격(5.1)을 검사한다. 모노, 16비트 PCM, 허용 샘플레이트 중 하나라도 어긋나면 아래처럼 422를 돌려준다. 임시 서버는 이 응답을 돌려주지 않는다.
+complete 때 올라온 WAV의 헤더를 읽어 규격(5.1)을 검사한다. 아래 중 하나라도 어긋나면 아래처럼 422를 돌려준다.
 
+- 모노, 16비트 PCM, 허용 샘플레이트
+- 업로드 URL을 받을 때 알린 `sample_rate`와 파일의 샘플레이트가 같은지
+
+<!-- example: InvalidRecordingsResponse -->
 ```json
 {
   "error": {
@@ -187,12 +195,13 @@
 ```
 
 - **검사 순서**: 올라오지 않은 녹음 검사(409)를 먼저 하고, 모두 올라왔을 때 규격을 검사한다.
-- **앱 처리**: `invalid_recordings`의 녹음만 규격에 맞게 다시 만든다. 같은 `recording_id`로 업로드 URL을 다시 받아 올린 뒤 complete를 다시 보낸다.
-- **응답 모양**: 위 모양으로 확정했다. 다음 단계에서 구현하며, 그때 `openapi.json`에도 들어간다.
+- **앱 처리**: `invalid_recordings`의 녹음만 규격에 맞게 다시 만든다. 같은 `recording_id`로 업로드 URL을 다시 받아 올린 뒤 complete를 다시 보낸다. 파일 정보(`sample_rate` 등)가 바뀌었으면 바뀐 값으로 요청한다(4.3).
+- **같은 상태 코드의 다른 응답**: complete의 422는 이 응답과 `VALIDATION_ERROR`(3.2) 두 가지다. `code`로 구분한다. `openapi.json`에는 `InvalidRecordingsResponse`로 들어 있다.
+- `reason`은 사람이 읽는 설명이다. 앱은 `reason`의 문장으로 처리를 나누지 않는다.
 
-### 3.5 다음 단계부터 생기는 응답: 요청 크기 상한 413
+### 3.5 요청 크기 상한 413
 
-실제 서버(다음 단계)부터 모든 요청의 본문은 1 MB(1,048,576바이트)까지 받는다. 넘으면 본문을 읽지 않고 413을 돌려준다. 임시 서버는 이 응답을 돌려주지 않는다.
+모든 요청의 본문은 1 MB(1,048,576바이트)까지 받는다. 넘으면 본문을 읽지 않고 413을 돌려준다. 앱 키 확인보다 먼저 검사한다.
 
 <!-- example: ErrorResponse -->
 ```json
@@ -207,7 +216,7 @@
 
 ## 4. 엔드포인트
 
-경로의 `{user_id}`, `{session_id}`, `{recording_id}`는 UUID v4다. 아래 예시는 모두 임시 서버의 실제 응답이다. 업로드 URL의 `expires_at`만 고정 값으로 바꿨다.
+경로의 `{user_id}`, `{session_id}`, `{recording_id}`는 UUID v4다. 아래 예시는 형식을 보여주기 위한 값이다(0.1.0 임시 서버의 응답). 실제 업로드·열람 URL은 S3 주소(`https://{버킷}.s3.ap-northeast-2.amazonaws.com/…`)이고 서명 때문에 길다. URL은 받은 그대로 쓰고, 고치거나 조립하지 않는다.
 
 ### 4.1 사용자 등록 `PUT /v1/users/{user_id}`
 
@@ -345,6 +354,12 @@
 
 - 각 파일을 응답의 `method`, `url`로 보내고, `headers`를 **그대로** 붙인다. 헤더가 서명에 들어갈 수 있어서, 빼거나 바꾸면 업로드가 거부될 수 있다.
 - URL은 15분 동안 유효하다(`expires_at`). 지나면 업로드 URL을 다시 요청한다. 같은 `recording_id`면 같은 저장 위치에 대한 새 URL이 나온다.
+- 같은 `recording_id`로 다시 요청할 때
+  - `kind`와 종류별 필드(`trial_no`, `sentence_id`, `game_run_id`, `agc_signal`)는 처음과 같아야 한다. 다르면 409다.
+  - 파일 정보(`duration_s`, `sample_rate`, `size_bytes`)는 complete 전에는 바뀌어도 된다. 새 값으로 바꿔 두고, complete 때 새 `sample_rate`로 파일을 검사한다(3.4).
+  - complete를 받은 뒤에는 파일 정보도 처음과 같아야 한다. 같으면 처음부터 다시 보내는 재시도로 보고 URL을 준다.
+- 다른 세션에 이미 있는 `recording_id`는 409다. 녹음 ID는 녹음마다 새로 만든다.
+- 한 요청 안에 409인 녹음이 하나라도 있으면 그 요청의 녹음은 하나도 등록하지 않는다.
 
 오류: 404 `SESSION_NOT_FOUND`, 409 `ID_CONFLICT`(같은 `recording_id`에 다른 내용), 422
 
@@ -393,8 +408,14 @@
 {"session_id": "8c41e7d2-5b3a-4f19-a6e2-9d0c7b1f3a58", "status": "processing"}
 ```
 
-- 이미 처리 중이거나 끝난 세션에 다시 보내면, 중복 저장하지 않고 지금 상태를 돌려준다.
-- 오류: 404 `SESSION_NOT_FOUND`, 409 `MISSING_RECORDINGS`(3.3), 422, 다음 단계부터 422 `INVALID_RECORDING_FORMAT`(3.4)
+- 이미 처리 중이거나 끝난 세션에 다시 보내면, 중복 저장하지 않고 지금 상태를 돌려준다. 이때 요청 본문은 저장하지 않는다.
+- 검사 순서. 앞에서 걸리면 뒤는 검사하지 않는다. 오류가 나면 아무것도 저장하지 않고 세션은 `open`으로 남으므로, 고친 뒤 다시 보내면 된다.
+  1. 세션이 있는지(404)
+  2. `game` 녹음의 `game_run_id`가 모두 `game_runs`에 있는지, `game_run_id`가 다른 세션에서 쓰이지 않았는지(422 `VALIDATION_ERROR`)
+  3. 업로드 URL을 받은 녹음이 모두 S3에 올라왔는지(409 `MISSING_RECORDINGS`)
+  4. 올라온 WAV가 규격에 맞는지(422 `INVALID_RECORDING_FORMAT`)
+- 검사 대상은 이 세션에서 업로드 URL을 받은 녹음 전체다. 올리지 않을 녹음은 업로드 URL을 요청하지 않는다.
+- 오류: 404 `SESSION_NOT_FOUND`, 409 `MISSING_RECORDINGS`(3.3), 422 `VALIDATION_ERROR`(3.2), 422 `INVALID_RECORDING_FORMAT`(3.4)
 
 ### 4.5 처리 상태와 서버 지표 `GET /v1/sessions/{session_id}`
 
@@ -484,7 +505,10 @@ complete 뒤 `status`가 `done`이 될 때까지 가끔 확인한다. 서버 계
 }
 ```
 
-오류: 404 `RECORDING_NOT_FOUND`(없거나 보관 기한이 지남), 422
+- 열람할 수 있는 녹음은 complete에서 업로드가 확인된 녹음이다. complete 전이면 404다.
+- 보관 기한은 S3에 올라간 날부터 365일이다. 지나면 404다.
+
+오류: 404 `RECORDING_NOT_FOUND`(없음, complete 전, 보관 기한이 지남), 422
 
 ### 4.9 상태 확인 `GET /health`
 

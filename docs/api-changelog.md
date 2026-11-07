@@ -13,21 +13,42 @@ API 명세([`api.md`](api.md), [`openapi.json`](openapi.json))가 바뀔 때마�
 
 ---
 
-## 예정: 다음 단계(실제 서버)
+## 예정: 서버 지표 계산
 
-아직 적용되지 않았다. 적용할 때 버전을 올리고 아래로 옮겨 적는다.
+아직 적용되지 않았다. 응답 형식은 바뀌지 않는다.
 
-- **complete에 422 `INVALID_RECORDING_FORMAT` 추가**: 올라온 WAV가 모노·16비트 PCM·허용 샘플레이트가 아니면, 녹음 ID와 이유를 돌려준다. 응답 모양은 [`api.md` 3.4](api.md#34-다음-단계부터-생기는-응답-wav-규격-422)로 확정했고, 빠진 녹음 검사(409)를 먼저 한다.
-  - 앱 영향: complete가 422를 돌려줄 수 있다. `invalid_recordings`의 녹음만 다시 만들어 올리고 complete를 다시 보낸다.
-- **요청 크기 상한 413 `PAYLOAD_TOO_LARGE` 추가**: 모든 요청의 본문이 1 MB(1,048,576바이트)를 넘으면 413을 돌려준다. 응답 모양은 [`api.md` 3.5](api.md#35-다음-단계부터-생기는-응답-요청-크기-상한-413)에 있다.
-  - 앱 영향: `client_meta`나 게임 기록의 `params`·`result`가 크면 413이 올 수 있다. 값을 줄여 다시 보낸다.
-- **실제 동작 시작**: 저장, 404·409 응답, 실제 업로드 URL. 응답 형식은 바뀌지 않는다.
+- complete 뒤 서버가 WAV에서 지표를 계산하고, 세션 `status`가 `done` 또는 `failed`가 된다.
+- `server_measurements`와 진전도(`baseline`, `series`, `latest`, `status`)에 값이 들어간다.
+- 앱 영향: 없음. 지금도 이 값들이 비어 있거나 `no_data`인 경우를 처리하고 있어야 한다.
+
+---
+
+## 0.2.0 (2026-11-07): 실제 저장과 업로드
+
+임시 서버(예시 응답) 대신 실제로 저장하는 서버다. 0.1.0에서 "다음 단계부터 생기는 응답"으로 적어 둔 것을 구현했다.
+
+- **추가**
+  - complete의 422 `INVALID_RECORDING_FORMAT`([`api.md` 3.4](api.md#34-wav-규격-422)). `openapi.json`에 `InvalidRecordingsResponse`가 생겼고, complete의 422는 이것과 `ValidationErrorResponse` 중 하나다.
+  - 모든 요청의 413 `PAYLOAD_TOO_LARGE`([`api.md` 3.5](api.md#35-요청-크기-상한-413))
+- **실제 동작 시작**
+  - 저장, 404·409 응답, S3에 실제로 올라가는 업로드 URL, 녹음 열람 URL
+  - 서버 지표 계산은 아직 없다. `status`는 `processing`에 머물고, 진전도 지표는 모두 `no_data`다([`api.md` 1.1](api.md#11-지금-서버에서-아직-되지-않는-것)).
+- **명확히 한 것**(0.1.0 규칙을 실제 서버에서 어떻게 지키는지)
+  - 같은 `recording_id`로 업로드 URL을 다시 받을 때 complete 전에는 파일 정보(`duration_s`, `sample_rate`, `size_bytes`)가 바뀌어도 된다. WAV 규격 422 뒤 고친 파일을 같은 ID로 올리기 위해서다. complete 뒤에는 처음과 같아야 한다([`api.md` 4.3](api.md#43-업로드-url-발급-post-v1sessionssession_idupload-urls)).
+  - 세션 등록을 다시 보낼 때 `client_meta`는 비교하지 않는다. 처음 받은 값을 둔다([`api.md` 2.6](api.md#26-같은-요청을-다시-보낼-때)).
+  - complete의 검사 순서: 404 → 게임 판 확인(422 `VALIDATION_ERROR`) → 올라오지 않은 녹음(409) → WAV 규격(422). 오류가 나면 아무것도 저장하지 않고 세션은 `open`으로 남는다([`api.md` 4.4](api.md#44-세션-완료-post-v1sessionssession_idcomplete)).
+  - `game` 녹음의 `game_run_id`가 complete의 `game_runs`에 없으면 422 `VALIDATION_ERROR`(경로 `body.game_runs`)다. 0.1.0에 적은 "같은 ID가 있어야 한다"를 검사한다.
+  - 녹음 열람은 complete에서 업로드가 확인된 녹음만 된다. complete 전이면 404 `RECORDING_NOT_FOUND`다. 보관 기한은 S3에 올라간 날부터 365일이다.
+- **앱 영향**
+  - 업로드 URL이 실제 S3 주소다. 응답의 `headers`를 그대로 붙여 올린다. `Content-Type`을 빼거나 바꾸면 S3가 403으로 거부한다.
+  - complete가 409·422를 돌려줄 수 있다. [`api.md` 3.3·3.4](api.md#3-오류)대로 고쳐 다시 보낸다.
+  - 기존 필드와 이름은 바뀌지 않았다.
 
 ---
 
 ## 0.1.0 (2026-11-06): 첫 API 명세
 
-앱 팀과 맞출 시작점이다. 임시 서버는 이 명세대로 예시 응답을 돌려준다.
+2026-11-07 앱 팀에 공유했다. 임시 서버는 이 명세대로 예시 응답을 돌려준다.
 
 - 엔드포인트
   - `/v1` 아래 8개: 사용자 등록, 세션 등록, 업로드 URL 발급, 세션 완료, 처리 상태, 진전도, 지표 정의, 녹음 열람 URL
