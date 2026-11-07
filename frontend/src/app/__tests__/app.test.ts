@@ -142,6 +142,7 @@ test('끝나지 않은 회차: 측정 블록을 끝내지 못했으면 버리기
     sustainedLevelDbfs: -20,
     f0MedianHz: 130,
     maxPhonationTimeS: 7,
+    articulationRateSps: 4.5,
     f0RangeHz: null,
     f0SearchRangeHz: { min: 75, max: 500 },
   });

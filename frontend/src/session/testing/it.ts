@@ -14,6 +14,7 @@ import { ApiClient } from '../api';
 import type { FetchLike } from '../api';
 import { createSessionModule } from '../core';
 import type { Session } from '../core';
+import type { SessionProgress } from '../types';
 import type { RecordingInput } from '../types';
 import { encodeWav } from '../wav';
 import { FsStore } from './fsStore';
@@ -21,6 +22,26 @@ import { measurementBlock, RATE } from './synth';
 
 export const IT_URL = process.env.DYSPEECH_IT_URL;
 export const IT_KEY = process.env.DYSPEECH_IT_KEY;
+/** 서버 처리를 기다리는 최대 시간(밀리초). 배포 서버처럼 오래 걸리면 실행할 때만 DYSPEECH_IT_WAIT_MS로 늘린다 */
+export const IT_WAIT_MS = Number(process.env.DYSPEECH_IT_WAIT_MS ?? 240_000);
+
+/** complete → 서버 202(등록·업로드·complete) → done까지 기다리며 두 구간 시간을 찍는다(상태 확인 간격 3초라 처리 시간은 3초 단위) */
+export async function completeAndWait(session: Session, label: string): Promise<SessionProgress> {
+  const t0 = Date.now();
+  let accepted: number | null = null;
+  await session.complete({ clientMeta: { source: 'integration_test' } });
+  const p = await session.waitForResult({
+    intervalMs: 3000,
+    timeoutMs: IT_WAIT_MS,
+    onProgress: (x) => {
+      if (accepted === null && (x.state === 'processing' || x.state === 'done' || x.state === 'failed')) accepted = Date.now();
+    },
+  });
+  const done = Date.now();
+  const a = accepted ?? done;
+  console.log(`[it] ${label} 시간: complete→202 ${((a - t0) / 1000).toFixed(1)}초, 202→${p.state} ${((done - a) / 1000).toFixed(1)}초, 합계 ${((done - t0) / 1000).toFixed(1)}초`);
+  return p;
+}
 const CLEANUP = process.env.DYSPEECH_IT_CLEANUP ?? join(tmpdir(), 'dyspeech-it-cleanup.json');
 
 export async function rememberForCleanup(userId: string): Promise<void> {
@@ -64,7 +85,7 @@ export async function runMeasurementBlock(session: Session, dir: string, seed: n
   const r = computeBlock({
     noise: analyses.get('noise')?.levels ?? null,
     trials: (['mpt1', 'mpt2', 'mpt3'] as StepId[]).map((s) => analyses.get(s)?.levels).filter((l): l is Float64Array => !!l),
-    sentence: sentence ? { levels: sentence.levels, f0: sentence.f0 ?? [] } : null,
+    sentence: sentence ? { levels: sentence.levels, f0: sentence.f0 ?? [], syllables: 21 } : null,
     calibration: session.needsCalibration ? calibration : null,
     storedCalibration: session.calibration(),
   });

@@ -22,7 +22,7 @@ export const GAME_AREAS: readonly { area: GameArea; title: string; description: 
  */
 export type GameBaselines = Pick<
   Baselines,
-  'noiseFloorDbfs' | 'sustainedLevelDbfs' | 'f0MedianHz' | 'f0SearchRangeHz' | 'maxPhonationTimeS'
+  'noiseFloorDbfs' | 'sustainedLevelDbfs' | 'f0MedianHz' | 'f0SearchRangeHz' | 'maxPhonationTimeS' | 'articulationRateSps'
 >;
 
 export function gameBaselines(b: Baselines): GameBaselines {
@@ -32,6 +32,7 @@ export function gameBaselines(b: Baselines): GameBaselines {
     f0MedianHz: b.f0MedianHz,
     f0SearchRangeHz: b.f0SearchRangeHz,
     maxPhonationTimeS: b.maxPhonationTimeS,
+    articulationRateSps: b.articulationRateSps,
   };
 }
 
@@ -47,6 +48,8 @@ export interface GameProps {
   level: number;
   /** 이번 회차에서 이 게임의 몇 번째 라운드인지(1부터). GameRun.round_index에 그대로 넣는다 */
   roundIndex: number;
+  /** 게임이 자기 상태(예: 기준값)를 사용자별로 저장할 때 쓰는 키. 개발용 바로가기는 'dev'(실제 사용자 기록과 섞이지 않게) */
+  userKey: string;
   /** 라운드가 끝날 때 한 번 부른다. 앱이 세션에 넣고 다음 단계를 정한다 */
   onRoundEnd: (run: GameRun, recording?: RoundRecording) => void;
   /** 라운드를 마치지 않고 나간다(기록 없음) */

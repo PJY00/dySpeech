@@ -199,6 +199,7 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
           baselines={baselines}
           level={screen.level}
           roundIndex={screen.roundIndex}
+          userKey={userKey}
           onRoundEnd={(run, recording) => void onRoundEnd(entry, run, recording)}
           onExit={() => dispatch({ type: 'chooseOther' })}
         />

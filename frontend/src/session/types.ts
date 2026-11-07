@@ -91,6 +91,8 @@ export interface Baselines {
   f0MedianHz: number | null;
   /** 최대발성지속시간(초) */
   maxPhonationTimeS: number | null;
+  /** 평가 문장의 조음속도(음절/초) = N(정답 음절 수) ÷ T_speech(휴지를 뺀 발화 시간, 초). 기기는 발화를 음량으로 나눈다 */
+  articulationRateSps: number | null;
   /** 캘리브레이션 글라이드에서 구한 편한 음높이 범위(5·95백분위, Hz). 첫 회차에 구해 저장 */
   f0RangeHz: HzRange | null;
   /** 기본주파수 탐색 범위(Hz). 서버와 같은 규칙(metrics-spec.md 4.6), 캘리브레이션이 없으면 75~500 */

@@ -137,8 +137,8 @@ export interface BlockInput {
   noise: Float64Array | null;
   /** mpt_trial 녹음들의 프레임 음량 */
   trials: Float64Array[];
-  /** eval_sentence 녹음의 프레임 음량과 기본주파수(보정 전, searchRange 범위로 구함) */
-  sentence: { levels: Float64Array; f0: (number | null)[] } | null;
+  /** eval_sentence 녹음의 프레임 음량, 기본주파수(보정 전, searchRange 범위로 구함), 정답 음절 수 */
+  sentence: { levels: Float64Array; f0: (number | null)[]; syllables: number } | null;
   /** 이번 회차 캘리브레이션 결과(첫 회차). 없으면 null */
   calibration: HzRange | null;
   /** 저장된 캘리브레이션(이전 회차). 없으면 null */
@@ -153,7 +153,16 @@ export interface BlockResult {
 
 const round = (x: number, digits: number) => Math.round(x * 10 ** digits) / 10 ** digits;
 
-/** 측정 블록 전체에서 기기 지표 4개(noise_floor, max_phonation_time, sustained_level, f0_median)와 기준값을 구한다 */
+/**
+ * 조음속도(음절/초) AR = N(정답 음절 수) ÷ T_speech(휴지를 뺀 발화 시간, 초)
+ * T_speech는 발화 프레임 수 × 0.01초(speechMask: 0.25초보다 짧은 공백은 발화에 넣고, 0.25초 이상 휴지는 뺌)
+ */
+export function articulationRate(levels: ArrayLike<number>, noiseFloor: number, syllables: number): { rate: number; speechS: number } | null {
+  const speechS = speechMask(levels, noiseFloor).filter(Boolean).length * HOP_S;
+  return speechS > 0 ? { rate: syllables / speechS, speechS } : null;
+}
+
+/** 측정 블록 전체에서 기기 지표 5개(noise_floor, max_phonation_time, sustained_level, articulation_rate, f0_median)와 기준값을 구한다 */
 export function computeBlock(input: BlockInput): BlockResult {
   const notes: string[] = [];
   const measurements: DeviceMeasurement[] = [];
@@ -181,7 +190,15 @@ export function computeBlock(input: BlockInput): BlockResult {
   }
 
   let f0MedianHz: number | null = null;
+  let articulationRateSps: number | null = null;
   if (input.sentence) {
+    const ar = articulationRate(input.sentence.levels, floorFor(input.sentence.levels), input.sentence.syllables);
+    if (ar) {
+      articulationRateSps = ar.rate;
+      measurements.push({ metric: 'articulation_rate', value: round(ar.rate, 2), unit: 'syllables/s', low_reliability: noNoise });
+    } else {
+      notes.push('평가 문장에서 발화를 찾지 못했다');
+    }
     const sp = sentencePitch(input.sentence.levels, input.sentence.f0, floorFor(input.sentence.levels));
     if (sp) {
       f0MedianHz = sp.f0MedianHz;
@@ -200,6 +217,7 @@ export function computeBlock(input: BlockInput): BlockResult {
       sustainedLevelDbfs: best ? best.medianLevel : null,
       f0MedianHz,
       maxPhonationTimeS: best ? best.durationS : null,
+      articulationRateSps,
       f0RangeHz: range,
       f0SearchRangeHz: searchRange(range),
     },

@@ -38,4 +38,5 @@ export const TEMP_BASELINES: GameBaselines = {
   f0MedianHz: 150,
   f0SearchRangeHz: { min: 75, max: 500 },
   maxPhonationTimeS: 10,
+  articulationRateSps: 4,
 };
