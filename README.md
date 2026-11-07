@@ -77,6 +77,7 @@ macOS: `python3.13 -m venv .venv && source .venv/bin/activate` 후 같은 `pip i
 - 테스트: `pytest -q`
 - 실행: `uvicorn app.main:app --reload`
 - 폰에서 접속할 때는 `uvicorn app.main:app --reload --host 0.0.0.0`으로 띄우고 PC의 내부 IP를 씁니다.
+- 서버는 `.env`에 운영 변수 6개(`.env.example` 참고)가 모두 있어야 뜹니다. 운영 변수가 없는 PC에서는 서버를 띄우지 않고 배포 서버 주소를 씁니다. 테스트(`pytest -q`)는 운영 변수 없이도 돕니다.
 - PC 내부 IP는 ipconfig로 cmd에서 확인하실 수 있습니다. 추후 env.example에 있는 로컬 호스트 주소 변경 시 사용하시면 됩니다.
 - 패키지를 추가할 때는 `requirements.txt`에 버전을 함께 기입해주세요.
 
