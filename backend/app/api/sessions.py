@@ -154,7 +154,7 @@ def post_upload_urls(session_id: UUID4, body: UploadUrlsIn, db: Db, storage: Sto
 
 
 def check_game_runs(db: DbSession, body: CompleteIn, recordings: list[RecordingRow]) -> None:
-    """게임 녹음의 게임 판이 요청에 있는지, 게임 판 ID가 다른 세션에서 쓰이지 않았는지 본다."""
+    """게임 녹음의 게임 라운드가 요청에 있는지, 게임 라운드 ID가 다른 세션에서 쓰이지 않았는지 본다."""
     sent = {run.game_run_id for run in body.game_runs}
     absent = sorted(
         {str(r.game_run_id) for r in recordings if r.kind is RecordingKind.game and r.game_run_id not in sent}
