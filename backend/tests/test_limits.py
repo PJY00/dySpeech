@@ -60,9 +60,9 @@ def test_too_large_is_checked_before_app_key(client_factory):
     assert post(client, complete_body(1000)).status_code == 401
 
 
-def test_requests_without_body_are_untouched(api_client):
-    assert api_client.get("/v1/metrics").status_code == 200
-    assert api_client.get("/health").json() == {"status": "ok"}
+def test_requests_without_body_are_untouched(flow_client):
+    assert flow_client.get("/v1/metrics").status_code == 200
+    assert flow_client.get("/health").json() == {"status": "ok"}
 
 
 def test_openapi_documents_413_for_every_v1_operation(api_client):

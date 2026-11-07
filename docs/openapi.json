@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "dySpeech API",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "paths": {
     "/v1/users/{user_id}": {

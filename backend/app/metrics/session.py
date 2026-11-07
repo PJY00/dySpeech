@@ -24,6 +24,7 @@ class RecordingInput:
     kind: RecordingKind
     load: Callable[[], bytes]  # 필요할 때 읽는다
     sentence_id: str | None = None
+    trial_no: int | None = None
 
 
 @dataclass(frozen=True)
@@ -93,7 +94,8 @@ def compute_session(
 def sustained(result: SessionMetrics, trials: list[RecordingInput], floor_for, no_noise: bool) -> None:
     """시도마다 가장 긴 발성을 찾고, 그중 가장 긴 것으로 세 지표를 구한다."""
     best = None
-    for trial_no, trial in enumerate(trials, start=1):
+    for index, trial in enumerate(trials, start=1):
+        trial_no = trial.trial_no or index
         audio = load_wav(trial.load())
         phonation = longest_phonation(audio, floor_for(audio))
         if phonation is not None and (best is None or phonation.duration_s > best[0].duration_s):

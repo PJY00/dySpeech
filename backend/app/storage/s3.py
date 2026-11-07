@@ -108,6 +108,10 @@ class RecordingStorage:
         info = self.info(key)
         return None if info is None else info.size
 
+    def read(self, key: str) -> bytes:
+        """객체 전체를 읽는다(서버 지표 계산용, 녹음 하나는 최대 약 12 MB)."""
+        return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+
     def read_start(self, key: str, length: int) -> bytes:
         """객체 앞부분만 읽는다(파일이 length보다 짧으면 있는 만큼)."""
         response = self.client.get_object(Bucket=self.bucket, Key=key, Range=f"bytes=0-{length - 1}")
