@@ -18,10 +18,27 @@ OUTPUT = Path(__file__).resolve().parents[2] / "docs" / "openapi.json"
 
 
 def render() -> str:
+    """
+    FastAPI 앱의 OpenAPI 문서를 JSON 문자열로 바꿈
+    입력: 없음 (app.main의 FastAPI 앱)
+    출력: 들여쓰기 2칸, 한글을 그대로 둔(ensure_ascii=False) JSON 문자열. 끝에 줄바꿈 하나
+    알고리즘
+    1. app.openapi()를 JSON으로 바꾸고 끝에 줄바꿈을 붙여 돌려줌
+    """
     return json.dumps(app.openapi(), ensure_ascii=False, indent=2) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    OpenAPI 문서를 docs/openapi.json으로 쓰거나, 파일이 코드와 같은지 확인함
+    입력: argv (명령줄 인자 목록, 없으면 sys.argv. --check: 파일을 쓰지 않고 같은지만 확인)
+    출력: 종료 코드(0 = 썼거나 같음, 1 = --check에서 파일이 없거나 다름). --check가 없으면 docs/openapi.json을 씀. 결과 문장을 표준 출력(다를 때는 표준 오류)에 씀
+    알고리즘
+    1. 명령줄 인자를 읽고 render로 문서 문자열을 만듦
+    2. --check면 파일이 있고 내용이 같을 때 0, 아니면 다시 만드는 방법을 표준 오류에 쓰고 1을 돌려줌
+    3. --check가 아니면 docs 폴더를 만들고, Windows에서도 diff가 생기지 않도록 줄바꿈을 \\n으로 고정해 UTF-8로 씀
+    4. 쓴 크기(바이트)를 출력하고 0을 돌려줌
+    """
     parser = argparse.ArgumentParser(description="OpenAPI 문서를 docs/openapi.json으로 내보낸다")
     parser.add_argument("--check", action="store_true", help="파일을 쓰지 않고, 코드와 같은지만 확인한다")
     args = parser.parse_args(argv)

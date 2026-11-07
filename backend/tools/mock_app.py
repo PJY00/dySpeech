@@ -41,7 +41,15 @@ SESSION_ANSWERS = json.loads(synthetic.ANSWERS.read_text(encoding="utf-8"))["ses
 
 
 def synthetic_wavs() -> dict[str, bytes]:
-    """합성 신호를 WAV 바이트로 만든다(파일로 쓰지 않음)."""
+    """
+    합성 신호를 파일로 쓰지 않고 WAV 바이트로 만들어 모음
+    입력: 없음 (fixtures/synthetic/signals.json)
+    출력: 파일 이름 → WAV 바이트 사전 (모노, 16비트 PCM, signals.json의 샘플레이트)
+    알고리즘
+    1. signals.json을 읽어 합성기(Synth)를 만듦
+    2. signals.json의 파일마다 신호를 만들고, −1~1로 자른 뒤 32767을 곱해 반올림한 16비트 정수로 바꿈
+    3. 메모리 안에서 모노 16비트 WAV로 써서 바이트를 모음
+    """
     synth = synthetic.Synth(synthetic.load_signals())
     out = {}
     for name in synth.s["files"]:
@@ -57,6 +65,13 @@ def synthetic_wavs() -> dict[str, bytes]:
 
 
 def seconds_of(data: bytes) -> float:
+    """
+    WAV 바이트의 길이를 초로 셈
+    입력: data (WAV 파일 바이트)
+    출력: 길이(초, 소수 셋째 자리까지 반올림)
+    알고리즘
+    1. WAV 헤더의 프레임 수 ÷ 샘플레이트(Hz)를 반올림해 돌려줌
+    """
     with wave.open(io.BytesIO(data), "rb") as file:
         return round(file.getnframes() / file.getframerate(), 3)
 
@@ -72,7 +87,24 @@ def make_wav(
     noise: float = 0.0,
     seed: int = 0,
 ) -> bytes:
-    """16비트 PCM WAV. 정현파(주파수를 미끄러뜨릴 수 있음)에 잡음을 더한다. 같은 인자면 같은 파일이다."""
+    """
+    정현파에 잡음을 더한 16비트 PCM WAV를 만들어 냄. 같은 인자면 같은 파일임
+    입력:
+    - seconds: 길이(초)
+    - rate: 샘플레이트(Hz, 기본 48000)
+    - channels: 채널 수(기본 1. 2면 같은 표본을 두 채널에 넣음)
+    - tone_hz: 정현파 주파수(Hz, 기본 220). None이면 정현파 없음
+    - glide_to_hz: 끝 주파수(Hz). 주면 tone_hz에서 이 값까지 고르게 미끄러뜨림
+    - level: 정현파 진폭(디지털 최대 크기 1 기준, 기본 0.3)
+    - noise: 균등 잡음 진폭(최대 크기 1 기준, 0이면 잡음 없음)
+    - seed: 잡음 난수 시드
+    출력: WAV 파일 바이트(16비트 PCM)
+    알고리즘
+    1. 표본 수 = 길이(초) × 샘플레이트를 반올림해 0으로 채운 신호를 만듦
+    2. tone_hz가 있으면 시작·끝 주파수 사이를 직선으로 잇는 주파수의 누적 위상으로 정현파를 더함
+    3. noise가 0이 아니면 시드를 고정한 −noise~+noise 균등 잡음을 더함
+    4. −1~1로 자르고 32767을 곱해 16비트 정수로 바꾼 뒤, 채널 수만큼 표본을 반복해 WAV로 씀
+    """
     n = round(seconds * rate)
     signal = np.zeros(n)
     if tone_hz is not None:
@@ -96,20 +128,50 @@ class Reply:
     body: bytes
 
     def json(self):
+        """
+        응답 본문을 JSON 값으로 바꿈
+        입력: 없음
+        출력: 풀어낸 JSON 값. 본문이 비어 있으면 None. JSON이 아니면 ValueError
+        알고리즘
+        1. 본문이 있으면 JSON으로 풀고, 없으면 None을 돌려줌
+        """
         return json.loads(self.body) if self.body else None
 
 
 class Http(Protocol):
-    def send(self, method: str, url: str, headers: dict[str, str], body: bytes | None) -> Reply: ...
+    def send(self, method: str, url: str, headers: dict[str, str], body: bytes | None) -> Reply:
+        """
+        HTTP 요청 하나를 보내고 응답을 받는 함수의 모양을 정함
+        입력: method (HTTP 메서드), url (요청 주소), headers (요청 헤더), body (요청 본문 바이트, 없으면 None)
+        출력: 응답(Reply: 상태 코드, 본문 바이트)
+        알고리즘
+        1. 구현 없음. UrllibHttp나 테스트용 가짜가 구현하고, 4xx·5xx도 예외 대신 응답으로 돌려줘야 함
+        """
+        ...
 
 
 class UrllibHttp:
     """표준 라이브러리만 쓰는 HTTP. 4xx·5xx도 예외 대신 응답으로 돌려준다."""
 
     def __init__(self, timeout: float = 30) -> None:
+        """
+        표준 라이브러리 HTTP 송신기의 제한 시간을 정함
+        입력: timeout (요청 하나의 제한 시간, 초, 기본 30)
+        출력: 없음
+        알고리즘
+        1. 제한 시간을 저장함
+        """
         self.timeout = timeout
 
     def send(self, method: str, url: str, headers: dict[str, str], body: bytes | None) -> Reply:
+        """
+        표준 라이브러리(urllib)로 HTTP 요청을 보내고, 4xx·5xx도 예외 대신 응답으로 돌려줌
+        입력: method (HTTP 메서드), url (요청 주소), headers (요청 헤더), body (요청 본문 바이트, 없으면 None)
+        출력: 응답(Reply: 상태 코드, 본문 바이트). 연결 실패 같은 네트워크 오류는 예외로 그대로 나감
+        알고리즘
+        1. 요청을 만들어 제한 시간 안에 보내고 상태 코드와 본문을 읽음
+        2. HTTPError(4xx·5xx)면 그 상태 코드와 본문을 응답으로 돌려줌
+        """
         request = Request(url, data=body, method=method, headers=headers)
         try:
             with urlopen(request, timeout=self.timeout) as response:
@@ -120,11 +182,27 @@ class UrllibHttp:
 
 class Api:
     def __init__(self, base_url: str, app_key: str, http: Http) -> None:
+        """
+        서버 API 호출기를 서버 주소·앱 키·HTTP 송신기로 준비함
+        입력: base_url (서버 주소, 끝의 / 는 뗌), app_key (X-App-Key 헤더 값), http (HTTP 송신기)
+        출력: 없음
+        알고리즘
+        1. 서버 주소 끝의 / 를 떼고 세 값을 저장함
+        """
         self.base_url = base_url.rstrip("/")
         self.app_key = app_key
         self.http = http
 
     def call(self, method: str, path: str, body: dict | None = None, with_key: bool = True) -> Reply:
+        """
+        서버 API 요청 하나를 앱 키와 JSON 본문을 붙여 보냄
+        입력: method (HTTP 메서드), path (서버 주소 뒤의 경로, 예: /v1/metrics), body (JSON으로 보낼 본문, 없으면 None), with_key (X-App-Key를 붙일지, 기본 참)
+        출력: 응답(Reply)
+        알고리즘
+        1. Accept: application/json 헤더를 넣고, with_key면 X-App-Key를 붙임
+        2. 본문이 있으면 JSON 바이트로 바꾸고 Content-Type: application/json을 붙임
+        3. 서버 주소 + 경로로 보냄
+        """
         headers = {"Accept": "application/json"}
         if with_key:
             headers["X-App-Key"] = self.app_key
@@ -136,7 +214,14 @@ class Api:
 
 
 def describe(reply: Reply) -> str:
-    """실패를 보여줄 때 쓴다. 응답 본문에 URL이 있을 수 있어 오류 코드와 메시지만 꺼낸다."""
+    """
+    실패를 보여줄 때 쓸 응답 설명을 만들어 냄. 본문에 URL이 있을 수 있어 오류 코드와 메시지만 꺼냄
+    입력: reply (서버 응답)
+    출력: "HTTP 상태" 또는 "HTTP 상태 code: message" 문자열
+    알고리즘
+    1. 본문 JSON의 error를 꺼내고, JSON이 아니거나 모양이 다르면 없는 것으로 봄
+    2. 상태 코드에 error가 있으면 그 code와 message만 붙여 돌려줌
+    """
     try:
         error = (reply.json() or {}).get("error")
     except (ValueError, AttributeError):
@@ -155,6 +240,14 @@ class Report:
     failed: list[str] = field(default_factory=list)
 
     def check(self, name: str, ok: bool, detail: str = "") -> bool:
+        """
+        확인 항목 하나의 통과·실패를 세고 출력함
+        입력: name (확인 항목 이름), ok (통과 여부), detail (실패 때 덧붙일 설명, 선택)
+        출력: ok를 그대로 돌려줌. 통과 수나 실패 목록을 늘리고 "통과  이름" 또는 "실패  이름: 설명"을 출력함
+        알고리즘
+        1. 통과면 통과 수를 1 늘리고 통과 줄을 출력함
+        2. 실패면 실패 목록에 이름을 넣고 실패 줄(설명이 있으면 함께)을 출력함
+        """
         if ok:
             self.passed += 1
             self.out(f"통과  {name}")
@@ -164,6 +257,13 @@ class Report:
         return ok
 
     def require(self, name: str, ok: bool, detail: str = "") -> None:
+        """
+        뒤 단계를 이어 가는 데 꼭 필요한 항목을 확인하고, 실패하면 멈춤
+        입력: name (확인 항목 이름), ok (통과 여부), detail (실패 때 덧붙일 설명, 선택)
+        출력: 없음. 실패하면 StepFailed(name)를 일으킴
+        알고리즘
+        1. check로 세고 출력한 뒤, 실패면 StepFailed를 일으킴
+        """
         if not self.check(name, ok, detail):
             raise StepFailed(name)
 
@@ -177,6 +277,13 @@ class Recording:
     recording_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     def request(self, data: bytes | None = None, rate: int = RATE) -> dict:
+        """
+        업로드 URL 요청(upload-urls)에 넣을 녹음 항목 하나를 만들어 냄
+        입력: data (크기를 잴 WAV 바이트, 없거나 비면 이 녹음의 파일), rate (알릴 샘플레이트, Hz, 기본 48000)
+        출력: recording_id, kind, 종류별 필드, duration_s(초), sample_rate(Hz), size_bytes(바이트)를 담은 사전
+        알고리즘
+        1. 녹음 ID·종류·종류별 필드·길이와, 샘플레이트, 바이트 길이를 사전으로 묶어 돌려줌
+        """
         data = data or self.data
         return {
             "recording_id": self.recording_id,
@@ -194,6 +301,21 @@ class MockApp:
     def __init__(
         self, api: Api, files: Http, ids_path: Path, report: Report, timeout_s: float = DEFAULT_TIMEOUT_S, poll_s: float = 1.0
     ) -> None:
+        """
+        흉내 앱이 쓸 연결·기록 위치와 새 사용자·세션 ID를 준비함
+        입력:
+        - api: 서버 API 호출기
+        - files: S3 업로드·다운로드용 HTTP 송신기
+        - ids_path: 만든 ID를 기록할 목록 파일 경로
+        - report: 확인 결과를 세는 보고기
+        - timeout_s: 세션마다 서버 처리를 기다리는 최대 시간(초, 기본 120)
+        - poll_s: 처리 상태를 다시 묻는 간격(초, 기본 1)
+        출력: 없음
+        알고리즘
+        1. 인자를 저장함
+        2. 사용자 ID, 훈련 세션 ID, 자동 게인 조절 시험 세션 ID를 UUID v4로 새로 만듦
+        3. 기록할 S3 키 목록과, 올린 파일(녹음 ID → 바이트) 사전을 비워 둠
+        """
         self.api = api
         self.timeout_s = timeout_s
         self.poll_s = poll_s
@@ -207,12 +329,27 @@ class MockApp:
         self.uploaded: dict[str, bytes] = {}
 
     def save_ids(self) -> None:
-        """정리 스크립트가 읽는 목록. 요청을 보내기 전에 먼저 써 둔다."""
+        """
+        정리 스크립트(tools.cleanup)가 읽는 ID 목록 파일을 씀. 요청을 보내기 전에 먼저 써 둠
+        입력: 없음
+        출력: 없음. ids_path에 {"user_ids", "session_ids"(훈련·자동 게인 조절 시험), "s3_keys"} JSON을 씀(폴더가 없으면 만듦)
+        알고리즘
+        1. 목록 파일의 폴더를 만들고, 지금까지의 ID와 S3 키를 JSON으로 덮어씀
+        """
         self.ids_path.parent.mkdir(parents=True, exist_ok=True)
         content = {"user_ids": [self.user_id], "session_ids": [self.training_id, self.agc_id], "s3_keys": self.s3_keys}
         self.ids_path.write_text(json.dumps(content, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     def expect(self, name: str, reply: Reply, status: int, check: Callable[[dict], bool] | None = None) -> dict:
+        """
+        응답의 상태 코드와 모양을 확인하고, 다르면 흐름을 멈춤
+        입력: name (확인 항목 이름), reply (서버 응답), status (기대 HTTP 상태 코드), check (본문을 받아 참·거짓을 내는 추가 확인, 선택)
+        출력: 응답 본문 JSON(본문이 없으면 빈 사전). 상태 코드가 다르거나 추가 확인이 거짓이면 StepFailed
+        알고리즘
+        1. 본문을 JSON으로 풀고, 상태 코드가 같고 추가 확인이 참인지 봄
+        2. 응답 모양이 명세와 달라 확인하지 못한 경우(ValueError·KeyError·IndexError·TypeError)도 실패로 봄
+        3. require로 결과를 세고, 실패면 기대 상태와 받은 응답 설명을 남기고 멈춤
+        """
         try:
             body = reply.json() if reply.body else {}
             ok = reply.status == status and (check is None or bool(check(body)))
@@ -223,6 +360,14 @@ class MockApp:
         return body
 
     def put_session(self, session_id: str, purpose: str, started_at: datetime) -> None:
+        """
+        세션을 등록하고 open 상태로 만들어졌는지 확인함
+        입력: session_id (세션 ID), purpose (세션 목적: training·agc_test 등), started_at (세션 시작 시각)
+        출력: 없음. 서버에 세션을 등록함. 200이 아니거나 status가 open이 아니거나 user_id가 다르면 StepFailed
+        알고리즘
+        1. 고정된 기기 정보(device_model mock_app, os_version 이 컴퓨터의 플랫폼, app_version mock-0.2.0, input_device synthetic, 샘플레이트 48000 Hz)와 client_meta로 세션 등록을 보냄
+        2. 200이고 status가 open, user_id가 이 사용자인지 확인함
+        """
         body = {
             "user_id": self.user_id,
             "purpose": purpose,
@@ -238,6 +383,15 @@ class MockApp:
         self.expect(f"세션 등록({purpose})", reply, 200, lambda b: b["status"] == "open" and b["user_id"] == self.user_id)
 
     def upload_urls(self, session_id: str, recordings: list[dict]) -> dict[str, dict]:
+        """
+        녹음 목록의 업로드 URL을 받고, 생길 S3 키를 ID 목록 파일에 기록함
+        입력: session_id (세션 ID), recordings (Recording.request로 만든 녹음 항목 목록)
+        출력: 녹음 ID → 업로드 정보(url, method, headers, expires_at) 사전. 200이 아니거나 응답 순서가 요청과 다르면 StepFailed. ID 목록 파일을 다시 씀
+        알고리즘
+        1. 업로드 URL 요청을 보내고, 200이며 응답의 녹음 ID 순서가 요청과 같은지 확인함
+        2. 녹음마다 S3 키 users/{user_id}/sessions/{session_id}/{recording_id}.wav를 겹치지 않게 기록함
+        3. ID 목록 파일을 다시 쓰고, 녹음 ID로 찾을 수 있는 사전을 돌려줌
+        """
         reply = self.api.call("POST", f"/v1/sessions/{session_id}/upload-urls", {"recordings": recordings})
         body = self.expect(
             f"업로드 URL {len(recordings)}개",
@@ -254,15 +408,38 @@ class MockApp:
         return uploads
 
     def put_file(self, upload: dict, data: bytes, name: str) -> None:
+        """
+        받은 업로드 URL로 파일 하나를 S3에 올림
+        입력: upload (업로드 정보: method, url, headers), data (올릴 WAV 바이트), name (보고에 쓸 이름)
+        출력: 없음. S3에 파일을 올리고, 올린 바이트를 녹음 ID로 기억함. 200이 아니면 StepFailed
+        알고리즘
+        1. 응답의 method·url로 보내고 headers를 그대로 붙임
+        2. 200인지 확인하고, 올린 바이트를 기억함(뒤에서 열람 URL로 받은 파일과 비교함)
+        """
         reply = self.files.send(upload["method"], upload["url"], dict(upload["headers"]), data)
         self.report.require(f"S3 올리기: {name}", reply.status == 200, f"HTTP {reply.status}")
         self.uploaded[upload["recording_id"]] = data
 
     def complete(self, session_id: str, body: dict) -> Reply:
+        """
+        세션 완료(complete) 요청을 보냄
+        입력: session_id (세션 ID), body (complete 요청 본문)
+        출력: 서버 응답(Reply). 확인은 하지 않음
+        알고리즘
+        1. POST /v1/sessions/{session_id}/complete를 보내고 응답을 그대로 돌려줌
+        """
         return self.api.call("POST", f"/v1/sessions/{session_id}/complete", body)
 
     def wait_done(self, session_id: str, name: str) -> dict:
-        """서버 지표 계산이 끝날(done 또는 failed) 때까지 기다린다."""
+        """
+        서버 지표 계산이 끝날(done 또는 failed) 때까지 기다림
+        입력: session_id (세션 ID), name (보고에 쓸 세션 이름)
+        출력: 마지막으로 받은 세션 상세 응답. 제한 시간(timeout_s, 초) 안에 done이 되지 않으면 StepFailed(상태, 오류, 기다린 초를 함께 보고)
+        알고리즘
+        1. 세션 상세를 묻고, 200이 아니면 빈 본문으로 봄
+        2. status가 done이나 failed가 되면 멈추고, 아니면 poll_s초 쉬고 다시 물음. 제한 시간이 지나면 멈춤
+        3. status가 done인지 require로 확인함
+        """
         started = time.monotonic()
         body: dict = {}
         while time.monotonic() - started < self.timeout_s:
@@ -277,7 +454,15 @@ class MockApp:
         return body
 
     def check_server_values(self, detail: dict) -> None:
-        """서버 지표가 합성 신호 정답의 허용 범위 안인지 본다."""
+        """
+        서버 지표가 합성 신호 정답의 허용 범위 안인지 확인함
+        입력: detail (세션 상세 응답, server_measurements 포함)
+        출력: 없음. 지표마다 통과·실패를 보고함(실패해도 멈추지 않음)
+        알고리즘
+        1. 서버 지표를 지표 이름으로 찾을 수 있게 모음
+        2. 정답 파일(answers.json의 session.answers)의 지표마다 확인함. calibration_으로 시작하는 정답은 건너뜀
+        3. 값이 있고, |서버 값 − 정답| ≤ 허용 오차이고, 신뢰 낮음이 아니면 통과로 셈
+        """
         values = {m["metric"]: m for m in detail["server_measurements"]}
         for metric, expected in SESSION_ANSWERS.items():
             if metric.startswith("calibration_"):
@@ -288,6 +473,26 @@ class MockApp:
             self.report.check(f"서버 지표 {metric} = {shown} (정답 {expected['value']} ± {expected['tolerance']})", ok)
 
     def run(self) -> None:
+        """
+        앱이 하는 순서대로 사용자 등록부터 녹음 열람까지 서버에 실제로 보내고, 응답이 API 명세대로인지 확인함
+        입력: 없음
+        출력: 없음. 서버에 사용자·세션 2개(훈련, 자동 게인 조절 시험)·녹음을 만들고 S3에 파일을 올림. 꼭 필요한 단계가 실패하면 StepFailed
+        알고리즘
+        1. ID 목록 파일을 먼저 씀
+        2. /health(앱 키 없이 200), 앱 키 없는 /v1/metrics(401 INVALID_APP_KEY), /v1/metrics(지표 11개)를 확인함
+        3. 사용자를 등록하고, 같은 요청을 다시 보내 같은 응답이 오는지 확인함
+        4. 시작 시각을 30분 전으로 한 훈련 세션을 등록함
+        5. 합성 신호로 녹음 6개를 만듦: calibration_glide(f0_glide), noise_floor, mpt_trial 1(broken_phonation), mpt_trial 2(steady_phonation), eval_sentence s1(paused_speech), game(300 Hz 정현파 2초)
+        6. 6개의 업로드 URL을 받고, mpt_trial 2만 빼고 올림
+        7. 기기 지표 3개와 게임 라운드 기록 1개(breath_hold)를 담아 complete를 보내고, 409 MISSING_RECORDINGS에 mpt_trial 2만 있는지 확인함
+        8. mpt_trial 2 자리에 스테레오 WAV를 올리고 complete를 보내, 422 INVALID_RECORDING_FORMAT에 그 녹음만 있는지 확인함
+        9. 같은 녹음 ID로 업로드 URL을 다시 받아 맞는 파일을 올리고, complete가 202 processing인지, 다시 보내도 같은 202인지 확인함
+        10. 서버 처리가 done이 될 때까지 기다리고, 기준선 회차 표시(is_baseline)와 서버 지표 정답 범위를 확인함
+        11. 시작 시각을 40분 뒤로 한 자동 게인 조절 시험 세션을 등록하고, 220 Hz 1초 소리 3개(진폭 0.1·0.2·0.3, agc_steps·agc_hold·agc_toggle)를 agc_tone으로 올림
+        12. complete가 202인지, done이 된 뒤 서버 지표가 비어 있는지 확인함(판정은 분석 스크립트가 따로 함)
+        13. 진전도가 지표 8개 모두 이 훈련 회차를 기준선으로 하고, 회차 값 1개, 변화량 0, 기기 값은 이 회차의 3개인지 확인함
+        14. 평가 문장 녹음의 열람 URL을 받아 내려받고, 올린 파일과 같은지 확인함
+        """
         self.save_ids()
         api = self.api
 
@@ -305,6 +510,13 @@ class MockApp:
         wavs = synthetic_wavs()
 
         def measured(kind: str, name: str, **fields) -> Recording:
+            """
+            합성 신호 파일 하나로 녹음 항목을 만들어 냄
+            입력: kind (녹음 종류), name (합성 신호 파일 이름), fields (종류별 필드, 예: trial_no, sentence_id)
+            출력: 녹음(Recording: 종류, WAV 바이트, 길이(초), 종류별 필드, 새 녹음 ID)
+            알고리즘
+            1. 만들어 둔 합성 WAV와 그 길이(초)로 Recording을 만듦
+            """
             return Recording(kind, wavs[name], seconds_of(wavs[name]), fields)
 
         glide = measured("calibration_glide", "f0_glide")
@@ -407,7 +619,16 @@ class MockApp:
 
 
 def clean_up(ids_path: Path, db=None, storage=None, out: Callable[[str], None] = print) -> bool:
-    """정리 스크립트로 지우고, DB와 S3에 남은 것이 없는지 확인한다."""
+    """
+    정리 스크립트(tools.cleanup)로 만든 데이터를 지우고, DB와 S3에 남은 것이 없는지 확인함
+    입력: ids_path (ID 목록 파일 경로), db (DB 세션, 없으면 환경 변수·backend/.env의 DATABASE_URL로 연결), storage (녹음 버킷 저장소, 없으면 환경 변수·backend/.env의 AWS_*·S3_BUCKET으로 만듦), out (결과를 출력할 함수, 기본 print)
+    출력: 깨끗하면 참(정리 종료 코드 0, 남은 S3 객체·DB 행 없음). S3 객체와 DB 행을 지우고, 남은 DB 행·S3 객체 수를 출력함
+    알고리즘
+    1. db·storage가 없으면 운영 접속 정보로 만듦
+    2. tools.cleanup.main을 목록 파일과 --yes로 실행함
+    3. 목록 파일의 사용자 저장 위치(users/{user_id}/) 아래 남은 S3 키와, 남은 사용자·세션 행을 찾음
+    4. 결과를 한 줄로 출력하고, 종료 코드가 0이고 남은 것이 없는지 돌려줌
+    """
     from sqlalchemy import select
     from sqlalchemy.orm import Session
 
@@ -444,6 +665,25 @@ def main(
     out: Callable[[str], None] = print,
     poll_s: float = 1.0,
 ) -> int:
+    """
+    합성 WAV로 앱의 전체 흐름을 서버에 보내 보는 명령을 실행함
+    입력:
+    - argv: 명령줄 인자 목록(없으면 sys.argv). --base-url(서버 주소, 기본 http://127.0.0.1:8000), --keep(만든 데이터를 지우지 않음), --timeout(세션마다 서버 처리를 기다리는 최대 시간, 초, 기본 120)
+    - api: 서버 API 호출기(시험용 주입, 없으면 환경 변수·backend/.env의 APP_API_KEY로 만듦)
+    - files: S3용 HTTP 송신기(시험용 주입, 없으면 urllib)
+    - cleaner: 정리 함수(시험용 주입, 없으면 clean_up)
+    - ids_dir: ID 목록 파일을 둘 폴더(기본 저장소 루트의 data/mock_app/)
+    - out: 결과를 출력할 함수(기본 print)
+    - poll_s: 처리 상태를 다시 묻는 간격(초, 기본 1)
+    출력: 종료 코드(0 = 모든 확인 통과이고 정리 성공, 1 = 실패나 정리 실패, 2 = APP_API_KEY 없음). ids_dir에 ID 목록 파일을 씀. --keep이 아니면 끝난 뒤 만든 데이터를 지움
+    알고리즘
+    1. 명령줄 인자를 읽음
+    2. api가 없으면 APP_API_KEY로 만들고, 키가 없으면 표준 오류에 알리고 2를 돌려줌
+    3. ID 목록 파일 이름을 지금 UTC 시각(YYYYmmdd-HHMMSS)과 무작위 16진수 6자리로 정함
+    4. 서버 주소와 ID 기록 위치를 출력하고 MockApp.run을 실행함. StepFailed면 나머지를 건너뛴다고 출력함
+    5. 예외가 나도 마지막에 정리함: --keep이면 나중에 지우는 명령을 출력하고, 아니면 정리 함수를 실행함. 예상 밖 예외는 정리 뒤 그대로 나감
+    6. 통과·실패 수(정리 실패면 함께)를 출력하고 종료 코드를 돌려줌
+    """
     parser = argparse.ArgumentParser(description="합성 WAV로 앱의 전체 흐름을 서버에 보내 본다")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help=f"서버 주소(기본 {DEFAULT_BASE_URL})")
     parser.add_argument("--keep", action="store_true", help="끝난 뒤 만든 데이터를 지우지 않는다")
