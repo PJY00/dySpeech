@@ -6,13 +6,13 @@ import { createSessionModule } from '../../session/core';
 import { MemoryStore } from '../../session/store';
 import { FAKE_KEY, FakeServer } from '../../session/testing/fakeServer';
 import { encodeWav } from '../../session/wav';
-import type { GameRun } from '../../session/types';
+import type { GameRun, LocalState, SessionSummary } from '../../session/types';
 import { METRIC_UNITS } from '../../session/types';
 import { parseDevScreen, resolveDevScreen, TEMP_BASELINES } from '../devScreen';
 import { initialFlow, reduceFlow, totalRounds, unfinishedOptions } from '../flow';
 import type { FlowAction, FlowState } from '../flow';
 import { GAME_AREAS, GAME_NAMES } from '../gameTypes';
-import { formatMeasurement, METRIC_LABELS } from '../labels';
+import { CARD_LABELS, cardStatus, formatMeasurement, METRIC_LABELS, needsPolling, recentCards } from '../labels';
 import { applyDecision, LevelBook, LEVELS_DOC } from '../levels';
 
 const run = (decision: GameRun['decision'], level = 2): GameRun => ({
@@ -165,4 +165,52 @@ test('끝나지 않은 회차: 측정 블록을 끝내지 못했으면 버리기
     assert.equal(o.canSend, full, `${s.purpose} ${full ? '측정 끝냄' : '측정 못 끝냄'}`);
     assert.equal(o.reason, full ? null : '측정을 끝내지 못한 회차는 보낼 수 없어요');
   }
+});
+
+const summary = (id: string, state: LocalState, startedAt: string, lastErrorCode: string | null = null): SessionSummary => ({
+  sessionId: id,
+  userId: 'u',
+  purpose: 'training',
+  startedAt,
+  state,
+  serverStatus: state === 'done' ? 'done' : null,
+  lastErrorCode,
+  uploaded: 0,
+  total: 6,
+});
+
+test('최근 회차 카드 상태: 보내는 중 / 서버 계산 중 / 결과 나옴 / 보내지 못함, complete 전은 카드 없음', () => {
+  const t = '2026-11-08T09:00:00Z';
+  assert.equal(cardStatus(summary('a', 'sending', t)), 'sending');
+  assert.equal(cardStatus(summary('a', 'queued', t)), 'sending', '오류 없이 기다리는 queued는 보내는 중');
+  assert.equal(cardStatus(summary('a', 'queued', t, 'NETWORK')), 'unsent', '재시도를 다 쓰고 기다리는 queued는 보내지 못함');
+  assert.equal(cardStatus(summary('a', 'blocked', t, 'VALIDATION_ERROR')), 'unsent');
+  assert.equal(cardStatus(summary('a', 'processing', t)), 'processing');
+  assert.equal(cardStatus(summary('a', 'done', t)), 'result');
+  assert.equal(cardStatus(summary('a', 'failed', t)), 'result');
+  assert.equal(cardStatus(summary('a', 'recording', t)), null);
+  assert.deepEqual(Object.values(CARD_LABELS), ['보내는 중', '서버 계산 중', '결과 나옴', '보내지 못함']);
+});
+
+test('최근 회차: 새 회차부터 3개, complete 전 회차는 빼고, 보내는 중·계산 중이 있을 때만 4초 갱신', () => {
+  const list = [
+    summary('old', 'done', '2026-11-01T09:00:00Z'),
+    summary('rec', 'recording', '2026-11-08T10:00:00Z'),
+    summary('p', 'processing', '2026-11-07T09:00:00Z'),
+    summary('q', 'queued', '2026-11-06T09:00:00Z', 'NETWORK'),
+    summary('d', 'done', '2026-11-05T09:00:00Z'),
+  ];
+  const cards = recentCards(list, 3);
+  assert.deepEqual(cards.map((c) => [c.summary.sessionId, c.status]), [['p', 'processing'], ['q', 'unsent'], ['d', 'result']]);
+  assert.equal(needsPolling(cards), true);
+  assert.equal(needsPolling(recentCards([summary('d', 'done', '2026-11-05T09:00:00Z'), summary('q', 'queued', '2026-11-06T09:00:00Z', 'NETWORK')])), false, '결과 나옴·보내지 못함만 있으면 멈춤');
+  assert.equal(needsPolling(recentCards([summary('s', 'sending', '2026-11-06T09:00:00Z')])), true);
+  assert.equal(needsPolling([]), false);
+});
+
+test('메인의 카드를 누르면 그 회차 결과 화면, 메인이 아닐 때는 무시', () => {
+  assert.equal(play([{ type: 'openResult' }]).screen.name, 'result');
+  assert.equal(play([{ type: 'openResult' }, { type: 'home' }]).screen.name, 'home');
+  const measuring = play([{ type: 'start', purpose: 'training' }]);
+  assert.equal(reduceFlow(measuring, { type: 'openResult' }), measuring);
 });
