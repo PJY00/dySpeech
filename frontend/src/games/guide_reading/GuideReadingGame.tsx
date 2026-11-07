@@ -12,7 +12,8 @@ import { discardRecordingFile, getHistory, readRecordingFile, stateStore, uuidv4
 import type { History } from '../../session';
 import { decodePcm16, parseWav } from '../../session/wav';
 import { analyzeSentence } from './analysis';
-import { SentenceEnd } from './endRule';
+import { fillsProgress, SentenceEnd } from './endRule';
+import type { EndReason } from './endRule';
 import { LiveReader } from './live';
 import { loadReadingState, recordDetection } from './reference';
 import type { ReadingState } from './reference';
@@ -120,7 +121,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
         if (n % 5 === 0) setProgress(live.estimate);
         if (end.push(lvl, dt, live.estimate)) {
           if (!stopping.current) log('sentence_end', { reason: end.reason, elapsed_s: end.elapsedS, estimate: live.estimate });
-          void stop(live);
+          void stop(live, end.reason ?? 'max');
         }
       });
     } catch (e) {
@@ -133,12 +134,13 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
     log('sentence_start', { sentence_id: s.id, guide_rate: target.guideRate, guide_s: guideS });
   }
 
-  async function stop(live: LiveReader) {
+  async function stop(live: LiveReader, endReason: EndReason) {
     if (stopping.current || !recorder.current || !target) return;
     stopping.current = true;
     if (guideTimer.current) clearTimeout(guideTimer.current);
     cursor.stopAnimation();
-    live.finish();
+    // 80% 넘게 읽고 끝났을 때만 진행 표시를 끝까지 채운다
+    if (fillsProgress(endReason)) live.finish();
     setProgress(live.estimate);
     setPhase('analyzing');
     try {
@@ -150,7 +152,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
         noiseFloorDbfs: baselines.noiseFloorDbfs,
         searchRange: baselines.f0SearchRangeHz,
       });
-      const r = judgeSentence(sentence.id, sentence.syllables, a, target);
+      const r = judgeSentence(sentence.id, sentence.syllables, a, target, endReason);
       const ratio = await recordDetection(stateStore, userKey, a.detected, sentence.syllables);
       setReading((st) => (st ? { ...st, detectionRatio: ratio } : st));
       await discardRecordingFile(file.fileUri);
@@ -162,7 +164,21 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
     }
   }
 
+  /** 준비 화면으로 돌아갈 때 안내 커서와 진행 표시를 0으로 */
+  function resetGuide() {
+    cursor.stopAnimation();
+    cursor.setValue(0);
+    setProgress(0);
+  }
+
+  /** 같은 문장을 다시 읽는다. 끝까지 읽지 못한 앞 시도는 결과에 남지만 판정에 세지 않는다 */
+  function retry() {
+    resetGuide();
+    setPhase('ready');
+  }
+
   function next() {
+    resetGuide();
     if (index + 1 < sentences.length) {
       setIndex(index + 1);
       setPhase('ready');
@@ -170,7 +186,16 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
     }
     if (!reading || !target) return;
     const run = buildGameRun(
-      { gameRunId: gameRunId.current, level, roundIndex, startedAt: startedAt.current, referenceRate: reading.referenceRate, referenceSource: reading.source, target },
+      {
+        gameRunId: gameRunId.current,
+        level,
+        roundIndex,
+        startedAt: startedAt.current,
+        referenceRate: reading.referenceRate,
+        referenceSource: reading.source,
+        target,
+        sentenceIds: sentences.map((x) => x.id),
+      },
       results,
     );
     log('round_end', { success_rate_pct: run.success_rate_pct, decision: run.decision });
@@ -226,7 +251,14 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
       )}
       {phase === 'reading' && <Text style={s.body}>{progress < 0.5 ? '준비… 파란 글자가 움직이면 읽어 주세요' : '읽는 중이에요'}</Text>}
       {phase === 'analyzing' && <ActivityIndicator size="large" />}
-      {phase === 'feedback' && last && target && (
+      {phase === 'feedback' && last && target && !last.judged && (
+        <>
+          <Text style={s.warn}>{REASON_TEXT.incomplete}</Text>
+          <Button label="다시 읽기" onPress={retry} />
+          <Button label={index + 1 < sentences.length ? '다음 문장' : '라운드 끝'} kind="secondary" onPress={next} />
+        </>
+      )}
+      {phase === 'feedback' && last && target && last.judged && (
         <>
           <Text style={last.passed ? s.ok : s.warn}>
             {last.passed ? (last.rhythm_checked ? '잘했어요!' : '잘했어요! (박자는 확인하지 못했어요)') : REASON_TEXT[last.reason ?? 'no_speech']}

@@ -27,6 +27,11 @@ export interface SentenceEndOptions {
   maxS: number;
 }
 
+/** 사용자 진행 표시(주황 점)를 끝까지 채울지: 80% 넘게 읽고 끝난 경우(progress)만 */
+export function fillsProgress(reason: EndReason | null): boolean {
+  return reason === 'progress';
+}
+
 export class SentenceEnd {
   private readonly o: SentenceEndOptions;
   private readonly floor: number;

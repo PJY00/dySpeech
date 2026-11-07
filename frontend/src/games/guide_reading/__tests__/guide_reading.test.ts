@@ -13,11 +13,11 @@ import type { History } from '../../../session/types';
 import { isUuidV4, uuidv4 } from '../../../session/uuid';
 import { decodePcm16, parseWav } from '../../../session/wav';
 import { analyzeSentence } from '../analysis';
-import { END_PROGRESS_RATIO, LATE_END_SILENCE_S, SentenceEnd } from '../endRule';
+import { END_PROGRESS_RATIO, fillsProgress, LATE_END_SILENCE_S, SentenceEnd } from '../endRule';
 import { LiveReader } from '../live';
 import { detectNuclei, intervalCv } from '../nuclei';
 import { DEFAULT_DETECTION_RATIO, loadReadingState, recordDetection, shouldRebaseline, STATE_DOC } from '../reference';
-import { buildGameRun, DEFAULT_REFERENCE_RATE, judgeSentence, LEVEL_SPECS, roundDecision, targetFor } from '../scoring';
+import { buildGameRun, DEFAULT_REFERENCE_RATE, judgeSentence, LEVEL_SPECS, MIN_JUDGED_SENTENCES, roundDecision, targetFor } from '../scoring';
 import type { SentenceResult } from '../scoring';
 import { hangulSyllables, roundSentences, TRAINING_SENTENCES } from '../sentences';
 
@@ -190,7 +190,7 @@ test('라운드 기록: api.md 7.2 형식, params(문장 ID·목표 구간·안�
   assert.deepEqual(params.target_rate_range, [3.15, 5.25], '2단계: 4.2 ± 25%');
   assert.equal(params.guide_rate, 4.2);
   const sentences = (run.result as { sentences: SentenceResult[] }).sentences;
-  assert.deepEqual(Object.keys(sentences[0]).sort(), ['articulation_rate', 'cv', 'detected_syllables', 'passed', 'reason', 'rhythm_checked', 'sentence_id', 'speech_s', 'syllables']);
+  assert.deepEqual(Object.keys(sentences[0]).sort(), ['articulation_rate', 'cv', 'detected_syllables', 'end_reason', 'judged', 'passed', 'reason', 'rhythm_checked', 'sentence_id', 'speech_s', 'syllables']);
   assert.ok(JSON.stringify(run).length < 10_000);
 });
 
@@ -283,6 +283,13 @@ test('문장 끝내기: 80% 미만에서 멈추면 안내 커서가 끝난 뒤 3
   assert.equal(e.reason, 'after_guide');
   near(e.stopS, e.guideEndS + LATE_END_SILENCE_S, 0.05, '끝난 시각 = 커서 끝 + 3초');
   assert.ok(e.estimate < 0.8 * 13);
+  // 판정: N(13) ÷ 읽은 부분(5음절)의 발화 시간이면 약 2.6배로 잡혀 fast가 되던 것을, 판정하지 않는다
+  const a = analyzeSentence(r.samples.subarray(0, Math.round(e.stopS * RATE)), RATE, 13, { noiseFloorDbfs: -60, searchRange: { min: 75, max: 500 } });
+  const t = targetFor(guideRate, 1);
+  assert.equal(judgeSentence('g01', 13, a, t).reason, 'fast', '끝낸 이유를 보지 않으면 fast로 실패');
+  const j = judgeSentence('g01', 13, a, t, e.reason ?? 'max');
+  assert.deepEqual([j.judged, j.passed, j.reason, j.end_reason, j.articulation_rate], [false, false, 'incomplete', 'after_guide', null]);
+  assert.equal(fillsProgress(e.reason), false, '진행 표시는 끝까지 채우지 않는다');
 });
 
 test('문장 끝내기: 최대 시간이 되면 끝낸다', () => {
@@ -291,4 +298,43 @@ test('문장 끝내기: 최대 시간이 되면 끝낸다', () => {
   while (!end.push(-20, 0.02, 0)) t += 0.02;
   assert.equal(end.reason, 'max');
   near(t + 0.02, 5, 0.03, '최대 시간');
+});
+
+test('끝까지 읽지 못한 문장: 말속도로 판정하지 않고 성공률 분모에서 뺀다. 판정 문장이 3개 미만이면 deferred', () => {
+  const t = targetFor(4, 1);
+  const m = (rate: number) => ({ rate, speechS: 3, cv: 0.3, detected: 9 });
+  const ok = (id: string) => judgeSentence(id, 11, m(4), t);
+  const bad = (id: string) => judgeSentence(id, 11, m(9), t);
+  const cut = (id: string, why: 'after_guide' | 'max') => judgeSentence(id, 11, m(4), t, why);
+  assert.equal(ok('g01').end_reason, 'progress');
+  assert.equal(ok('g01').judged, true);
+  for (const why of ['after_guide', 'max'] as const) {
+    const c = cut('g02', why);
+    assert.deepEqual([c.judged, c.passed, c.reason, c.end_reason, c.articulation_rate, c.rhythm_checked], [false, false, 'incomplete', why, null, false]);
+  }
+  // 판정 3개(모두 통과) + 끝까지 못 읽은 시도 2개 → 3/3 = 100% up
+  const three = roundDecision([ok('g01'), cut('g02', 'after_guide'), ok('g02'), ok('g03'), cut('g04', 'max')]);
+  assert.deepEqual([three.decision, three.successRatePct], ['up', 100]);
+  assert.match(three.reason, /끝까지 읽지 못한 시도 2개 제외/);
+  // 판정 3개 중 1개 통과 → 33% down
+  assert.equal(roundDecision([ok('g01'), bad('g02'), bad('g03'), cut('g04', 'max')]).decision, 'down');
+  // 판정 2개뿐 → deferred
+  assert.equal(MIN_JUDGED_SENTENCES, 3);
+  const two = roundDecision([ok('g01'), ok('g02'), cut('g03', 'after_guide'), cut('g04', 'after_guide'), cut('g05', 'max')]);
+  assert.equal(two.decision, 'deferred');
+  assert.match(two.reason, /3개 미만/);
+});
+
+test('다시 읽기: 결과에는 시도마다 남고, params.sentence_ids는 라운드의 문장 5개 그대로', () => {
+  const t = targetFor(4, 1);
+  const ids = roundSentences(1).map((x) => x.id);
+  const results = [
+    judgeSentence('g01', 11, { rate: 4, speechS: 2, cv: 0.2, detected: 9 }, t, 'after_guide'),
+    ...ids.map((id) => judgeSentence(id, 11, { rate: 4, speechS: 2.7, cv: 0.2, detected: 9 }, t)),
+  ];
+  const run = buildGameRun({ gameRunId: uuidv4(), level: 1, roundIndex: 1, startedAt: '2026-11-08T09:00:00.000Z', referenceRate: 4, referenceSource: 'baseline', target: t, sentenceIds: ids }, results);
+  assert.deepEqual((run.params as Record<string, unknown>).sentence_ids, ids);
+  assert.equal((run.result as { sentences: unknown[] }).sentences.length, 6);
+  assert.equal(run.success_rate_pct, 100);
+  assert.deepEqual([fillsProgress('progress'), fillsProgress('max'), fillsProgress(null)], [true, false, false]);
 });
