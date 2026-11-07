@@ -1,0 +1,244 @@
+{
+  "description": "합성 신호의 정답값. generate.py --answers로 만든다. 값마다 허용 범위(tolerance, ±)가 있다.",
+  "files": {
+    "noise_floor": {
+      "noise_floor": {
+        "value": -60.0,
+        "tolerance": 0.5
+      }
+    },
+    "level_steps": {
+      "step_levels_dbfs": [
+        {
+          "value": -36.0,
+          "tolerance": 0.3
+        },
+        {
+          "value": -30.0,
+          "tolerance": 0.3
+        },
+        {
+          "value": -24.0,
+          "tolerance": 0.3
+        },
+        {
+          "value": -18.0,
+          "tolerance": 0.3
+        }
+      ]
+    },
+    "broken_phonation": {
+      "max_phonation_time": {
+        "value": 5.0,
+        "tolerance": 0.05
+      },
+      "loudness_decay_slope": {
+        "value": -2.0,
+        "tolerance": 0.15
+      },
+      "sustained_level": {
+        "value": -22.85,
+        "tolerance": 0.3
+      }
+    },
+    "steady_phonation": {
+      "max_phonation_time": {
+        "value": 3.0,
+        "tolerance": 0.05
+      },
+      "sustained_level": {
+        "value": -20.0,
+        "tolerance": 0.3
+      },
+      "loudness_decay_slope": {
+        "value": 0.0,
+        "tolerance": 0.15
+      }
+    },
+    "f0_glide": {
+      "calibration_low_hz": {
+        "value": 155.2897,
+        "tolerance": 3.11
+      },
+      "calibration_high_hz": {
+        "value": 289.7809,
+        "tolerance": 5.8
+      },
+      "f0_median": {
+        "value": 212.132,
+        "tolerance": 3.18
+      },
+      "f0_sd_semitones": {
+        "value": 3.4641,
+        "tolerance": 0.2
+      },
+      "pitch_range_semitones": {
+        "value": 10.8,
+        "tolerance": 0.5
+      }
+    },
+    "syllable_train": {
+      "total_s": {
+        "value": 4.125,
+        "tolerance": 0.08
+      },
+      "pause_s": {
+        "value": 0.0,
+        "tolerance": 0.05
+      },
+      "articulation_rate": {
+        "value": 5.0909,
+        "tolerance": 0.101
+      },
+      "speech_rate": {
+        "value": 5.0909,
+        "tolerance": 0.101
+      },
+      "pause_ratio": {
+        "value": 0.0,
+        "tolerance": 2.0
+      },
+      "f0_median": {
+        "value": 142.3636,
+        "tolerance": 4.27
+      },
+      "f0_sd_semitones": {
+        "value": 1.589,
+        "tolerance": 0.4
+      },
+      "pitch_range_semitones": {
+        "value": 4.9547,
+        "tolerance": 1.0
+      },
+      "detected_syllables": {
+        "value": 21.0,
+        "tolerance": 6
+      }
+    },
+    "paused_speech": {
+      "total_s": {
+        "value": 5.375,
+        "tolerance": 0.08
+      },
+      "pause_s": {
+        "value": 1.1,
+        "tolerance": 0.05
+      },
+      "articulation_rate": {
+        "value": 4.9123,
+        "tolerance": 0.094
+      },
+      "speech_rate": {
+        "value": 3.907,
+        "tolerance": 0.059
+      },
+      "pause_ratio": {
+        "value": 20.4651,
+        "tolerance": 2.0
+      },
+      "f0_median": {
+        "value": 139.2294,
+        "tolerance": 4.18
+      },
+      "f0_sd_semitones": {
+        "value": 1.6507,
+        "tolerance": 0.4
+      },
+      "pitch_range_semitones": {
+        "value": 5.3665,
+        "tolerance": 1.0
+      },
+      "detected_syllables": {
+        "value": 21.0,
+        "tolerance": 6
+      }
+    },
+    "paused_speech_louder": {
+      "mean_level_change_from_paused_speech": {
+        "value": 3.0,
+        "tolerance": 0.2
+      }
+    }
+  },
+  "session": {
+    "recordings": [
+      {
+        "kind": "calibration_glide",
+        "file": "f0_glide"
+      },
+      {
+        "kind": "noise_floor",
+        "file": "noise_floor"
+      },
+      {
+        "kind": "mpt_trial",
+        "trial_no": 1,
+        "file": "broken_phonation"
+      },
+      {
+        "kind": "mpt_trial",
+        "trial_no": 2,
+        "file": "steady_phonation"
+      },
+      {
+        "kind": "eval_sentence",
+        "sentence_id": "s1",
+        "file": "paused_speech"
+      }
+    ],
+    "answers": {
+      "noise_floor": {
+        "value": -60.0,
+        "tolerance": 0.5
+      },
+      "max_phonation_time": {
+        "value": 5.0,
+        "tolerance": 0.05
+      },
+      "sustained_level": {
+        "value": -22.85,
+        "tolerance": 0.3
+      },
+      "loudness_decay_slope": {
+        "value": -2.0,
+        "tolerance": 0.15
+      },
+      "mean_level_change": {
+        "value": 0.0,
+        "tolerance": 0.01
+      },
+      "calibration_low_hz": {
+        "value": 155.2897,
+        "tolerance": 3.11
+      },
+      "calibration_high_hz": {
+        "value": 289.7809,
+        "tolerance": 5.8
+      },
+      "articulation_rate": {
+        "value": 4.9123,
+        "tolerance": 0.094
+      },
+      "speech_rate": {
+        "value": 3.907,
+        "tolerance": 0.059
+      },
+      "pause_ratio": {
+        "value": 20.4651,
+        "tolerance": 2.0
+      },
+      "f0_median": {
+        "value": 139.2294,
+        "tolerance": 4.18
+      },
+      "f0_sd_semitones": {
+        "value": 1.6507,
+        "tolerance": 0.4
+      },
+      "pitch_range_semitones": {
+        "value": 5.3665,
+        "tolerance": 1.0
+      }
+    }
+  }
+}
