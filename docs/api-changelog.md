@@ -13,13 +13,16 @@ API 명세([`api.md`](api.md), [`openapi.json`](openapi.json))가 바뀔 때마�
 
 ---
 
-## 예정: 서버 지표 계산
+## 예정
 
-아직 적용되지 않았다. 응답 형식은 바뀌지 않는다.
+아직 버전을 올리지 않은 변경이다. 다음 버전을 낼 때 그 기록으로 옮긴다.
 
-- complete 뒤 서버가 WAV에서 지표를 계산하고, 세션 `status`가 `done` 또는 `failed`가 된다.
-- `server_measurements`와 진전도(`baseline`, `series`, `latest`, `status`)에 값이 들어간다.
-- 앱 영향: 없음. 지금도 이 값들이 비어 있거나 `no_data`인 경우를 처리하고 있어야 한다.
+- **용어: 판 → 라운드(필드 이름 변경 없음)**: 게임의 한 차례를 문서와 설명에서 "라운드"라고 쓴다. 예: 게임 라운드 ID(`game_run_id`), 라운드 번호(`round_index`), 라운드 성공률(`success_rate_pct`). 지난 기록의 "판"은 그대로 둔다.
+  - 앱 영향: 없음. 필드 이름과 동작은 그대로다.
+- **서버 지표 계산**: 아직 적용되지 않았다. 응답 형식은 바뀌지 않는다.
+  - complete 뒤 서버가 WAV에서 지표를 계산하고, 세션 `status`가 `done` 또는 `failed`가 된다.
+  - `server_measurements`와 진전도(`baseline`, `series`, `latest`, `status`)에 값이 들어간다.
+  - 앱 영향: 없음. 지금도 이 값들이 비어 있거나 `no_data`인 경우를 처리하고 있어야 한다.
 
 ---
 
