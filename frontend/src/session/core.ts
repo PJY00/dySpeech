@@ -64,8 +64,16 @@ export interface Session {
   /** 끝난 시각을 고정해 저장하고 보내기를 시작한다. 오프라인이어도 바로 돌아온다 */
   complete(options?: { clientMeta?: Record<string, unknown> }): Promise<void>;
   status(): SessionProgress;
-  /** 보내기가 끝나기를 기다린 뒤 서버 처리 상태를 간격(기본 4초)마다 확인한다(기본 3분까지) */
-  waitForResult(options?: { intervalMs?: number; timeoutMs?: number; onProgress?: (p: SessionProgress) => void }): Promise<SessionProgress>;
+  /**
+   * 보내기가 끝나기를 기다린 뒤 서버 처리 상태를 간격(기본 4초)마다 확인한다(기본 3분까지)
+   * signal을 멈추면(abort) 기다리기와 상태 확인만 멈추고 지금 상태를 돌려준다. 보내기는 세션 모듈이 계속한다
+   */
+  waitForResult(options?: {
+    intervalMs?: number;
+    timeoutMs?: number;
+    onProgress?: (p: SessionProgress) => void;
+    signal?: AbortSignal;
+  }): Promise<SessionProgress>;
   /** complete 전에만: 세션과 녹음 파일을 지운다 */
   discard(): Promise<void>;
 }
@@ -94,8 +102,10 @@ export interface SessionModule {
    * 어느 세션에도 없는 녹음 파일(녹음 도중 앱이 꺼져 남은 WAV)도 지운다. 녹음 중에는 부르지 않는다
    */
   resumePending(): Promise<{ resumed: number; unfinished: Session[]; sweptFiles: number }>;
-  /** 보내기와 처리 중 세션 상태 확인을 지금 하고 끝날 때까지 기다린다 */
+  /** 보내기와 처리 중 세션 상태 확인을 지금 하고 끝날 때까지 기다린다(앱이 앞으로 올 때) */
   syncNow(): Promise<void>;
+  /** 서버 계산 중(processing)인 세션의 상태만 서버에서 다시 읽는다. 보내기는 새로 시작하지 않는다(메인 화면 갱신용) */
+  refreshStatuses(): Promise<void>;
   getLatestBaselines(): Promise<Baselines | null>;
   /** 진전도. 사용자가 아직 서버에 없으면 null */
   getHistory(): Promise<History | null>;
@@ -311,19 +321,37 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
       async waitForResult(options) {
         const interval = options?.intervalMs ?? pollIntervalMs;
         const timeout = options?.timeoutMs ?? pollTimeoutMs;
+        const signal = options?.signal;
         const start = now().getTime();
-        await syncer.kick();
+        const stopped = () => signal?.aborted === true;
+        const aborted = signal
+          ? new Promise<void>((resolve) => {
+              if (signal.aborted) resolve();
+              else signal.addEventListener('abort', () => resolve(), { once: true });
+            })
+          : null;
+        // 멈추면 기다리기만 끝낸다. 기다리던 일(보내기, 상태 확인)은 그대로 돈다
+        const until = (job: Promise<unknown>) => {
+          const settled = job.then(
+            () => undefined,
+            () => undefined,
+          );
+          return aborted ? Promise.race([settled, aborted]) : settled;
+        };
+        await until(syncer.kick());
         for (;;) {
+          if (stopped()) return progress(rec);
           options?.onProgress?.(progress(rec));
           const finalStates: LocalState[] = ['done', 'failed', 'blocked', 'queued', 'recording'];
           if (finalStates.includes(rec.state)) return progress(rec);
-          await syncer.refresh(rec.id);
+          await until(syncer.refresh(rec.id));
+          if (stopped()) return progress(rec);
           if (rec.state === 'done' || rec.state === 'failed') {
             options?.onProgress?.(progress(rec));
             return progress(rec);
           }
           if (now().getTime() - start >= timeout) return progress(rec);
-          await sleep(interval);
+          await until(sleep(interval));
         }
       },
 
@@ -408,6 +436,8 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
       await refreshProcessing();
     },
 
+    refreshStatuses: () => refreshProcessing(),
+
     async getLatestBaselines() {
       return (await currentUserRecord()).latestBaselines;
     },
@@ -447,6 +477,9 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
           startedAt: rec.startedAt,
           state: rec.state,
           serverStatus: rec.server?.status ?? null,
+          lastErrorCode: rec.lastError?.code ?? null,
+          uploaded: rec.recordings.filter((r) => r.uploaded).length,
+          total: rec.recordings.length,
         });
       }
       return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));

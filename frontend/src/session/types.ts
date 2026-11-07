@@ -190,4 +190,9 @@ export interface SessionSummary {
   startedAt: string;
   state: LocalState;
   serverStatus: ServerStatus | null;
+  /** 마지막 보내기 오류 코드(예: NETWORK). 없으면 null */
+  lastErrorCode: string | null;
+  /** 올린 녹음 수 / 올릴 녹음 수 */
+  uploaded: number;
+  total: number;
 }

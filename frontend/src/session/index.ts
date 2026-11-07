@@ -51,6 +51,7 @@ export const sessionModule = createSessionModule({
 export const startSession = sessionModule.startSession;
 export const resumePending = sessionModule.resumePending;
 export const syncNow = sessionModule.syncNow;
+export const refreshStatuses = sessionModule.refreshStatuses;
 export const getLatestBaselines = sessionModule.getLatestBaselines;
 export const getHistory = sessionModule.getHistory;
 export const currentUser = sessionModule.currentUser;
@@ -61,10 +62,21 @@ export const openSession = sessionModule.openSession;
 export const readRecordingFile = sessionModule.readRecordingFile;
 export const discardRecordingFile = sessionModule.discardRecordingFile;
 
-/** 앱이 앞으로 올 때마다 못 보낸 세션을 보낸다. 끄는 함수를 돌려준다 */
-export function startAutoSync(): () => void {
+/**
+ * 앱이 앞으로 올 때마다 못 보낸 세션을 보내고 계산 중인 세션 상태를 갱신한다(syncNow). 끄는 함수를 돌려준다
+ * onChange: 앞으로 왔을 때, 1초 뒤(보내기가 시작된 뒤), syncNow가 끝난 뒤 부른다(화면 목록 갱신용)
+ */
+export function startAutoSync(onChange?: () => void): () => void {
   const sub = AppState.addEventListener('change', (state) => {
-    if (state === 'active') void syncNow().catch((e) => console.log('[session] sync_error', String(e)));
+    if (state !== 'active') return;
+    onChange?.();
+    const later = setTimeout(() => onChange?.(), 1000);
+    void syncNow()
+      .catch((e) => console.log('[session] sync_error', String(e)))
+      .finally(() => {
+        clearTimeout(later);
+        onChange?.();
+      });
   });
   return () => sub.remove();
 }
