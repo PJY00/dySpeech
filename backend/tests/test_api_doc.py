@@ -35,6 +35,7 @@ REQUIRED = {
     "ErrorResponse",
     "ValidationErrorResponse",
     "MissingRecordingsResponse",
+    "InvalidRecordingsResponse",
 }
 
 EXAMPLES = EXAMPLE.findall(DOC.read_text(encoding="utf-8"))
