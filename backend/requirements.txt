@@ -10,3 +10,4 @@ psycopg[binary]==3.3.8
 sqlalchemy==2.1.8
 alembic==1.20.1
 boto3==1.43.125
+onnxruntime==1.31.1
