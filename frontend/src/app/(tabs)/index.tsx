@@ -1,4 +1,5 @@
 // 1. 기본 화면 (홈)
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -14,9 +15,19 @@ import { useStartTraining } from '@/state/daily-check';
 import { useTodayProgress } from '@/state/today-progress';
 import { colors, spacing } from '@/theme';
 
+// 개발용 바로가기(EXPO_PUBLIC_SCREEN)가 있으면 앱을 처음 열 때 한 번만 app-shell 흐름으로 보낸다.
+let devShortcutOpened = false;
+
 export default function HomeScreen() {
   const startTraining = useStartTraining();
   const { completedCount, totalCount } = useTodayProgress();
+
+  useEffect(() => {
+    if (__DEV__ && !devShortcutOpened && process.env.EXPO_PUBLIC_SCREEN?.trim()) {
+      devShortcutOpened = true;
+      router.push('/dev/shell');
+    }
+  }, []);
 
   return (
     <Screen
