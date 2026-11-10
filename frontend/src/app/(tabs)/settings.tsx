@@ -6,41 +6,25 @@ import { router } from 'expo-router';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { useDailyCheck } from '@/state/daily-check';
-import { useTodayProgress } from '@/state/today-progress';
 import { colors, spacing } from '@/theme';
+import { useTraining } from '@/training/TrainingProvider';
 
 export default function SettingsScreen() {
-  const { isDoneToday, reset } = useDailyCheck();
-  const { completedCount, totalCount, reset: resetProgress } = useTodayProgress();
+  const { completed, resetToday, startRetest } = useTraining();
 
   const resetTodayProgress = () => {
-    resetProgress();
-    Alert.alert('초기화했습니다', '오늘 완료 현황을 0/3으로 되돌렸습니다.');
-  };
-
-  const resetDailyCheck = () => {
-    reset();
-    Alert.alert('초기화했습니다', '다음 훈련 시작 시 캘리브레이션과 사전 측정을 다시 진행합니다.');
+    void resetToday().then(() => Alert.alert('초기화했습니다', '오늘 완료 현황을 0/3으로 되돌렸습니다.'));
   };
 
   return (
     <Screen header={<ScreenHeader title="설정" back={false} />}>
       <Card>
-        <Text style={styles.sectionTitle}>데모</Text>
+        <Text style={styles.sectionTitle}>개발 · 데모</Text>
+        <Row label="반복 측정 시작 (MDC 수집용)" onPress={() => void startRetest()} />
         <Row label="실제 훈련 흐름 (app-shell)" onPress={() => router.push('/dev/shell')} />
         <Row label="첫 실행 화면 보기" onPress={() => router.push('/onboarding/profile')} />
         <Row label="임상가 화면 보기" onPress={() => router.push('/clinician')} />
-        <Row
-          label="오늘 측정 초기화"
-          detail={isDoneToday ? '오늘 측정 완료' : '오늘 측정 전'}
-          onPress={resetDailyCheck}
-        />
-        <Row
-          label="오늘 완료 현황 초기화"
-          detail={`${completedCount}/${totalCount}`}
-          onPress={resetTodayProgress}
-        />
+        <Row label="오늘 완료 현황 초기화" detail={`${completed.length}/3`} onPress={resetTodayProgress} />
       </Card>
     </Screen>
   );

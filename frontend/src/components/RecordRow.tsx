@@ -1,18 +1,23 @@
+// 회차 한 줄: 회차·날짜와 진전도 지표 3개(평균 음량 변화, 조음속도, 무음 비율)
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { SessionRecord } from '@/data/mock';
 import { colors, spacing } from '@/theme';
+import type { SessionRow } from '@/training/useHistory';
 
-export function RecordRow({ record }: { record: SessionRecord }) {
+export function RecordRow({ row, index }: { row: SessionRow; index: number }) {
+  const date = new Date(row.startedAt);
+  const v = row.values;
   return (
     <View style={styles.row}>
       <View style={styles.title}>
-        <Text style={styles.session}>{record.session}회차</Text>
-        <Text style={styles.date}>{record.date}</Text>
+        <Text style={styles.session}>{index}회차</Text>
+        <Text style={styles.date}>
+          {date.getFullYear()}.{String(date.getMonth() + 1).padStart(2, '0')}.{String(date.getDate()).padStart(2, '0')}
+        </Text>
       </View>
-      <RecordValue label="음량" value={`${record.db} dB`} />
-      <RecordValue label="발화 속도" value={`${record.rate}`} />
-      <RecordValue label="무음 비율" value={`${record.pauseRatio}%`} />
+      <RecordValue label="음량 변화" value={v.mean_level_change !== undefined ? `${v.mean_level_change.toFixed(1)} dB` : '–'} />
+      <RecordValue label="조음속도" value={v.articulation_rate !== undefined ? v.articulation_rate.toFixed(2) : '–'} />
+      <RecordValue label="무음 비율" value={v.pause_ratio !== undefined ? `${v.pause_ratio.toFixed(0)}%` : '–'} />
     </View>
   );
 }

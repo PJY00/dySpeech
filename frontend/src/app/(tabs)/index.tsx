@@ -10,17 +10,19 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Screen } from '@/components/Screen';
 import { domains } from '@/data/domains';
-import { todaySummary } from '@/data/mock';
-import { useStartTraining } from '@/state/daily-check';
-import { useTodayProgress } from '@/state/today-progress';
 import { colors, spacing } from '@/theme';
+import { formatMeasurement, METRIC_LABELS } from '@/training/labels';
+import { useTraining } from '@/training/TrainingProvider';
+import { findMetric, useHistory } from '@/training/useHistory';
 
 // 개발용 바로가기(EXPO_PUBLIC_SCREEN)가 있으면 앱을 처음 열 때 한 번만 app-shell 흐름으로 보낸다.
 let devShortcutOpened = false;
+// 끝나지 않은 회차가 있으면 앱을 열 때 한 번만 묻는다.
+let resumeAsked = false;
 
 export default function HomeScreen() {
-  const startTraining = useStartTraining();
-  const { completedCount, totalCount } = useTodayProgress();
+  const { ready, completed, unfinished, startTraining } = useTraining();
+  const { history } = useHistory();
 
   useEffect(() => {
     if (__DEV__ && !devShortcutOpened && process.env.EXPO_PUBLIC_SCREEN?.trim()) {
@@ -28,6 +30,13 @@ export default function HomeScreen() {
       router.push('/dev/shell');
     }
   }, []);
+
+  useEffect(() => {
+    if (ready && !resumeAsked && unfinished.length > 0) {
+      resumeAsked = true;
+      router.push('/session/resume');
+    }
+  }, [ready, unfinished.length]);
 
   return (
     <Screen
@@ -59,19 +68,26 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         <View style={styles.summary}>
-          <ProgressRing done={completedCount} total={totalCount} />
-          <Metric label="평균 음량" value={`${todaySummary.averageDb} dB`} />
-          <Metric label="평균 발화 속도" value={`${todaySummary.averageRate}`} />
-          <Metric label="평균 F0" value={`${todaySummary.averageF0} Hz`} />
+          <ProgressRing done={completed.length} total={domains.length} />
+          {domains.map((domain) => {
+            const m = findMetric(history, domain.metrics[0]);
+            return (
+              <Metric
+                key={domain.id}
+                label={METRIC_LABELS[domain.metrics[0]]}
+                value={m?.latest ? formatMeasurement({ value: m.latest.value, unit: m.unit, low_reliability: false }) : '–'}
+              />
+            );
+          })}
         </View>
       </Card>
 
-      <PrimaryButton label="훈련 시작하기" onPress={() => startTraining('/games')} />
+      <PrimaryButton label="훈련 시작하기" onPress={() => void startTraining('/games')} />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>게임 선택하기</Text>
         {domains.map((domain) => (
-          <DomainCard key={domain.id} domain={domain} onPress={() => startTraining(`/games/${domain.id}`)} />
+          <DomainCard key={domain.id} domain={domain} onPress={() => void startTraining(`/games/${domain.id}`)} />
         ))}
       </View>
     </Screen>
@@ -155,7 +171,7 @@ const styles = StyleSheet.create({
     color: colors.subText,
   },
   metricValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.text,
   },
