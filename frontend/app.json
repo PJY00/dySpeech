@@ -36,7 +36,9 @@
           ],
           "androidForegroundService": false
         }
-      ]
+      ],
+      "expo-router",
+      "expo-font"
     ]
   }
 }
