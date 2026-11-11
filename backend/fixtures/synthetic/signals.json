@@ -1,0 +1,115 @@
+{
+  "description": "서버 지표 계산을 확인하는 합성 신호의 만드는 값. generate.py가 이 값으로 WAV와 정답값(answers.json)을 만든다.",
+  "format": {"channels": 1, "sample_width_bytes": 2, "sample_rate": 48000},
+  "level_definition": "level_dbfs = 20 × log10(RMS). RMS는 −1~1 표본 값의 제곱평균제곱근이다.",
+  "band_limit_hz": 7000,
+  "background_noise_dbfs": -60.0,
+  "ramp_ms": 10,
+  "noise_seed": 20261107,
+  "files": {
+    "noise_floor": {
+      "kind": "noise_floor",
+      "description": "잡음만 2초(100~7000 Hz 대역 잡음, −60 dBFS)",
+      "duration_s": 2.0
+    },
+    "level_steps": {
+      "kind": null,
+      "description": "200 Hz 배음 소리가 1.5초씩 6 dB 단계로 커진다. 프레임 음량 확인용",
+      "duration_s": 7.0,
+      "f0_hz": 200.0,
+      "steps": [
+        {"start_s": 0.5, "end_s": 2.0, "level_dbfs": -36.0},
+        {"start_s": 2.0, "end_s": 3.5, "level_dbfs": -30.0},
+        {"start_s": 3.5, "end_s": 5.0, "level_dbfs": -24.0},
+        {"start_s": 5.0, "end_s": 6.5, "level_dbfs": -18.0}
+      ]
+    },
+    "broken_phonation": {
+      "kind": "mpt_trial",
+      "description": "끊김이 있는 지속 발성. 0.15초 끊김(이어 붙임), 0.5초 끊김(나뉨), 0.05초 조각(버림). 가장 긴 구간은 초당 2 dB씩 작아진다",
+      "duration_s": 8.0,
+      "f0_hz": 180.0,
+      "decay": {"start_s": 0.5, "level_dbfs": -18.0, "db_per_s": -2.0},
+      "segments": [
+        {"start_s": 0.5, "end_s": 3.0, "level": "decay"},
+        {"start_s": 3.15, "end_s": 5.5, "level": "decay"},
+        {"start_s": 6.0, "end_s": 7.0, "level_dbfs": -20.0},
+        {"start_s": 7.4, "end_s": 7.45, "level_dbfs": -20.0}
+      ]
+    },
+    "steady_phonation": {
+      "kind": "mpt_trial",
+      "description": "끊김 없는 지속 발성 3초, −20 dBFS",
+      "duration_s": 4.0,
+      "f0_hz": 200.0,
+      "segments": [{"start_s": 0.5, "end_s": 3.5, "level_dbfs": -20.0}]
+    },
+    "f0_glide": {
+      "kind": "calibration_glide",
+      "description": "기본주파수 글라이드: 4초 동안 150 Hz에서 300 Hz로 로그 척도로 일정하게 올라간다(12반음), −20 dBFS",
+      "duration_s": 5.0,
+      "start_s": 0.5,
+      "end_s": 4.5,
+      "f0_start_hz": 150.0,
+      "f0_end_hz": 300.0,
+      "level_dbfs": -20.0
+    },
+    "syllable_train": {
+      "kind": "eval_sentence",
+      "sentence_id": "s1",
+      "description": "음절형 진폭 변조: 말소리 같은 음절 21개를 쉬지 않고 이어 읽는다",
+      "lead_s": 1.0,
+      "tail_s": 1.0,
+      "level_dbfs": -20.0,
+      "phrases": [
+        {"syllables": 21, "f0_start_hz": 165.0, "f0_end_hz": 120.0}
+      ]
+    },
+    "paused_speech": {
+      "kind": "eval_sentence",
+      "sentence_id": "s1",
+      "description": "휴지가 들어간 낭독: 음절 8 + 7 + 6개. 구절 사이 0.6초·0.5초 휴지, 첫 구절 안에 0.15초 끊김(휴지 아님)",
+      "lead_s": 1.0,
+      "tail_s": 1.0,
+      "level_dbfs": -20.0,
+      "phrases": [
+        {"syllables": 8, "f0_start_hz": 170.0, "f0_end_hz": 125.0, "gap_after_syllable": 4, "gap_s": 0.15},
+        {"pause_before_s": 0.6, "syllables": 7, "f0_start_hz": 160.0, "f0_end_hz": 120.0},
+        {"pause_before_s": 0.5, "syllables": 6, "f0_start_hz": 150.0, "f0_end_hz": 115.0}
+      ]
+    },
+    "paused_speech_louder": {
+      "kind": "eval_sentence",
+      "sentence_id": "s1",
+      "description": "paused_speech와 같은 낭독을 3 dB 크게(잡음은 그대로). 평균 음량 변화 확인용",
+      "same_as": "paused_speech",
+      "gain_db": 3.0
+    }
+  },
+  "syllable": {
+    "burst_s": 0.025,
+    "vowel_s": [0.17, 0.15, 0.19, 0.16, 0.18, 0.15, 0.2],
+    "attack_s": 0.02,
+    "release_s": 0.04,
+    "formant_transition_s": 0.06,
+    "vowels": {
+      "a": [750, 1250, 2600],
+      "e": [480, 1900, 2600],
+      "i": [300, 2300, 3000],
+      "o": [480, 850, 2500],
+      "u": [330, 900, 2300]
+    },
+    "vowel_order": ["a", "i", "u", "e", "o", "a", "e"],
+    "bandwidths_hz": [90, 110, 170]
+  },
+  "session": {
+    "description": "mock_app이 보내는 한 회차. 정답값은 answers.json의 session에 있다",
+    "recordings": [
+      {"kind": "calibration_glide", "file": "f0_glide"},
+      {"kind": "noise_floor", "file": "noise_floor"},
+      {"kind": "mpt_trial", "trial_no": 1, "file": "broken_phonation"},
+      {"kind": "mpt_trial", "trial_no": 2, "file": "steady_phonation"},
+      {"kind": "eval_sentence", "sentence_id": "s1", "file": "paused_speech"}
+    ]
+  }
+}
