@@ -1,41 +1,69 @@
-// [임시] 기준 음량 측정 화면.
-// 실제 앱에서는 앱 시작 시 한 번 측정해서 모든 게임이 공유한다. 그때 이 파일을 대체한다.
-// 계약: 측정이 끝나면 onDone(baselineDb)를 호출한다. (baselineDb = 기준 음량, dBFS 중앙값)
+// [임시] 기준선 측정 화면.
+//  - noiseFloorDb: 조용히 있는 구간의 음량(하위 20% 백분위)
+//  - baselineDb: "아~" 소리를 낸 구간의 음량 중앙값 (잡음 바닥 + 10dB 이상인 프레임만)
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { frameToDb, median } from './audio';
+import type { Baseline } from './baseline';
+import { estimateNoiseFloor, voicingThresholdDb } from './noiseFloor';
 import { MicFrame, useMic } from './tempUseMic';
 
-/** 이 값보다 작은 프레임은 무음으로 보고 제외 (dBFS) */
-const NOISE_GATE_DB = -50;
-/** 기준선을 만들기 위해 모아야 하는 발성 시간(초) */
+/** 조용히 있는 시간(초) */
+const QUIET_SECONDS = 2;
+/** 기준 음량을 만들기 위해 모아야 하는 발성 시간(초) */
 const VOICED_SECONDS = 2;
+
+type Step = 'idle' | 'quiet' | 'voice';
 
 export default function TempCalibration({
   onDone,
 }: {
-  onDone: (baselineDb: number) => void;
+  onDone: (baseline: Baseline) => void;
 }) {
-  const [measuring, setMeasuring] = useState(false);
+  const [step, setStep] = useState<Step>('idle');
   const [progress, setProgress] = useState(0);
 
-  const doneRef = useRef(false);
+  const stepRef = useRef<Step>('idle');
+  const quietDbRef = useRef<number[]>([]);
+  const quietSecRef = useRef(0);
+  const noiseFloorRef = useRef(0);
   const voicedDbRef = useRef<number[]>([]);
-  const voicedSecondsRef = useRef(0);
+  const voicedSecRef = useRef(0);
+
+  const changeStep = (next: Step) => {
+    stepRef.current = next;
+    setStep(next);
+    setProgress(0);
+  };
 
   const handleFrame = useCallback(({ samples, sampleRate }: MicFrame) => {
-    if (doneRef.current) return;
     const db = frameToDb(samples);
-    if (db < NOISE_GATE_DB) return;
+    const dt = samples.length / sampleRate;
 
-    voicedDbRef.current.push(db);
-    voicedSecondsRef.current += samples.length / sampleRate;
-    setProgress(Math.min(1, voicedSecondsRef.current / VOICED_SECONDS));
+    if (stepRef.current === 'quiet') {
+      quietDbRef.current.push(db);
+      quietSecRef.current += dt;
+      setProgress(Math.min(1, quietSecRef.current / QUIET_SECONDS));
+      if (quietSecRef.current >= QUIET_SECONDS) {
+        noiseFloorRef.current = estimateNoiseFloor(quietDbRef.current);
+        changeStep('voice');
+      }
+      return;
+    }
 
-    if (voicedSecondsRef.current >= VOICED_SECONDS) {
-      doneRef.current = true;
-      void stop();
-      onDone(median(voicedDbRef.current));
+    if (stepRef.current === 'voice') {
+      if (db < voicingThresholdDb(noiseFloorRef.current)) return; // 무음은 제외
+      voicedDbRef.current.push(db);
+      voicedSecRef.current += dt;
+      setProgress(Math.min(1, voicedSecRef.current / VOICED_SECONDS));
+      if (voicedSecRef.current >= VOICED_SECONDS) {
+        stepRef.current = 'idle';
+        void stop();
+        onDone({
+          baselineDb: median(voicedDbRef.current),
+          noiseFloorDb: noiseFloorRef.current,
+        });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onDone]);
@@ -43,11 +71,11 @@ export default function TempCalibration({
   const { start, stop, error } = useMic(handleFrame);
 
   const begin = async () => {
-    doneRef.current = false;
+    quietDbRef.current = [];
+    quietSecRef.current = 0;
     voicedDbRef.current = [];
-    voicedSecondsRef.current = 0;
-    setProgress(0);
-    setMeasuring(true);
+    voicedSecRef.current = 0;
+    changeStep('quiet');
     await start();
   };
 
@@ -55,15 +83,19 @@ export default function TempCalibration({
     <View style={styles.container}>
       <Text style={styles.title}>기준 음량 측정</Text>
       <Text style={styles.guide}>
-        {measuring
-          ? '"아~" 소리를 일정한 크기로 계속 내 주세요.'
-          : '편한 크기로 "아~" 소리를 내서 내 기준 음량을 측정해요.'}
+        {step === 'idle' &&
+          '먼저 2초 동안 조용히 있고, 이어서 편한 크기로 "아~" 소리를 내서 내 기준 음량을 측정해요.'}
+        {step === 'quiet' && '조용히 계세요…'}
+        {step === 'voice' && '"아~" 소리를 일정한 크기로 계속 내 주세요.'}
       </Text>
-      {measuring && (
-        <Text style={styles.info}>측정 중 {Math.round(progress * 100)}%</Text>
+      {step !== 'idle' && (
+        <Text style={styles.info}>
+          {step === 'quiet' ? '조용히 측정 중' : '소리 측정 중'}{' '}
+          {Math.round(progress * 100)}%
+        </Text>
       )}
       {error && <Text style={styles.error}>{error}</Text>}
-      {!measuring && (
+      {step === 'idle' && (
         <Pressable style={styles.button} onPress={begin}>
           <Text style={styles.buttonText}>측정 시작</Text>
         </Pressable>

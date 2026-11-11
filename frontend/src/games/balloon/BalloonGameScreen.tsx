@@ -1,145 +1,67 @@
-// UI: 마이크(useMic) → 음향 처리(audio) → 판정(balloonLogic)을 연결하고 풍선을 그린다.
-// 기준 음량(baselineDb)은 앱 시작 시 측정된 값을 prop으로 받는다.
-import { useCallback, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { frameToDb } from '../../shared/audio/audio';
-import {
-  BalloonState,
-  initialBalloonState,
-  stepBalloon,
-  TARGET_DELTA_DB,
-  TARGET_HOLD_SECONDS,
-} from './balloonLogic';
-import { MicFrame, useMic } from '../../shared/audio/tempUseMic';
+// 풍선 불기(game = balloon, 호흡 영역). 라운드 하나 = 풍선 하나.
+// 기준 음량보다 목표만큼 크게 소리를 내면 풍선이 커지고, 목표 시간만큼 유지하면 통과.
+// 판정과 라운드 진행은 useBalloonRound가 하고, 여기서는 풍선을 그린다.
+import { StyleSheet, Text, View } from 'react-native';
 
-type Phase = 'ready' | 'playing' | 'passed';
+import type { BalloonGameProps } from './gameProps';
+import { MAX_LEVEL, ROUND_SECONDS } from './balloonLogic';
+import { Button, common, NoticeFrame, ResultPanel } from './RoundPanel';
+import { useBalloonRound } from './useBalloonRound';
 
 const BALLOON_MIN_SCALE = 0.3;
 const BALLOON_MAX_SCALE = 1.6;
 const BALLOON_BASE_SIZE = 160;
 
-type Props = {
-  /** 기준 음량 (dBFS). 앱 시작 시 측정한 값 */
-  baselineDb: number;
-};
+export function BalloonGameScreen(props: BalloonGameProps) {
+  const round = useBalloonRound({ ...props, game: 'balloon' });
+  const { phase, state, target, lastRun } = round;
 
-export default function BalloonGameScreen({ baselineDb }: Props) {
-  const [phase, setPhase] = useState<Phase>('ready');
-  const [balloon, setBalloon] = useState<BalloonState>(initialBalloonState);
-  const [dbDiff, setDbDiff] = useState(0);
+  const notice = NoticeFrame({ title: '풍선 불기', phase, error: round.error, onExit: round.exit });
+  if (notice) return notice;
 
-  // 프레임 콜백에서 쓰는 값은 ref로 들고 있어야 최신 값이 보장된다.
-  const phaseRef = useRef<Phase>('ready');
-  const baselineRef = useRef(baselineDb);
-  baselineRef.current = baselineDb;
-  const balloonRef = useRef<BalloonState>(initialBalloonState);
-
-  const changePhase = (next: Phase) => {
-    phaseRef.current = next;
-    setPhase(next);
-  };
-
-  const handleFrame = useCallback(({ samples, sampleRate }: MicFrame) => {
-    if (phaseRef.current !== 'playing') return;
-
-    const dt = samples.length / sampleRate;
-    const diff = frameToDb(samples) - baselineRef.current;
-
-    balloonRef.current = stepBalloon(balloonRef.current, diff, dt);
-    setDbDiff(diff);
-    setBalloon(balloonRef.current);
-
-    if (balloonRef.current.passed) {
-      changePhase('passed');
-      void stop();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { start, stop, error } = useMic(handleFrame);
-
-  const startGame = async () => {
-    balloonRef.current = initialBalloonState;
-    setBalloon(initialBalloonState);
-    setDbDiff(0);
-    changePhase('playing');
-    await start();
-  };
-
-  const reset = async () => {
-    await stop();
-    changePhase('ready');
-    balloonRef.current = initialBalloonState;
-    setBalloon(initialBalloonState);
-  };
-
-  const scale =
-    BALLOON_MIN_SCALE + (BALLOON_MAX_SCALE - BALLOON_MIN_SCALE) * balloon.size;
+  const scale = BALLOON_MIN_SCALE + (BALLOON_MAX_SCALE - BALLOON_MIN_SCALE) * state.size;
+  const rule = `기준보다 +${target.deltaDb}dB 이상으로 ${target.holdSeconds}초 동안 유지하세요.`;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>풍선 불기</Text>
-
-      <Text style={styles.guide}>
-        {phase === 'ready' &&
-          `"아~" 소리를 기준보다 크게(+${TARGET_DELTA_DB}dB 이상) ${TARGET_HOLD_SECONDS}초 동안 유지하세요.`}
-        {phase === 'playing' &&
-          `기준보다 크게(+${TARGET_DELTA_DB}dB 이상) ${TARGET_HOLD_SECONDS}초 동안 유지하세요.`}
-        {phase === 'passed' && '통과했어요! 🎉'}
+    <View style={common.container}>
+      <Text style={common.title}>풍선 불기</Text>
+      <Text style={common.level}>
+        단계 {props.level} / {MAX_LEVEL} · {props.roundIndex}번째 연습
       </Text>
 
-      <View style={styles.balloonArea}>
-        <View
-          style={[
-            styles.balloon,
-            phase === 'passed' && styles.balloonPassed,
-            { transform: [{ scale }] },
-          ]}
-        />
-      </View>
+      {phase === 'finished' && lastRun ? (
+        <ResultPanel run={lastRun} target={target} onContinue={round.confirm} />
+      ) : (
+        <>
+          <Text style={common.guide}>{phase === 'ready' ? `"아~" 소리를 내 보세요. ${rule}` : rule}</Text>
 
-      <View>
-        <Text style={styles.info}>
-          기준 {baselineDb.toFixed(1)} dB
-          {phase !== 'ready' &&
-            ` / 현재 차이 ${dbDiff >= 0 ? '+' : ''}${dbDiff.toFixed(1)} dB`}
-        </Text>
-        {phase !== 'ready' && (
-          <Text style={styles.info}>
-            유지 {balloon.holdTime.toFixed(1)} / {TARGET_HOLD_SECONDS}초
-          </Text>
-        )}
-      </View>
+          <View style={s.balloonArea}>
+            <View style={[s.balloon, { transform: [{ scale }] }]} />
+          </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+          {phase === 'playing' && (
+            <View>
+              <Text style={common.info}>
+                현재 차이 {round.dbDiff >= 0 ? '+' : ''}
+                {round.dbDiff.toFixed(1)} dB
+              </Text>
+              <Text style={common.info}>
+                유지 {state.holdTime.toFixed(1)} / {target.holdSeconds}초 · 남은 시간 {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)}초
+              </Text>
+            </View>
+          )}
 
-      <View style={styles.buttons}>
-        {phase === 'ready' && <Button label="시작" onPress={startGame} />}
-        {phase !== 'ready' && <Button label="다시 하기" onPress={reset} />}
-      </View>
+          <View style={common.buttons}>
+            {phase === 'ready' && <Button label="시작" onPress={round.start} />}
+            <Button label="나가기" onPress={round.exit} light />
+          </View>
+        </>
+      )}
     </View>
   );
 }
 
-function Button({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable style={styles.button} onPress={onPress}>
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 16,
-  },
-  title: { fontSize: 28, fontWeight: '700' },
-  guide: { fontSize: 16, textAlign: 'center', color: '#333' },
+const s = StyleSheet.create({
   balloonArea: {
     width: BALLOON_BASE_SIZE * BALLOON_MAX_SCALE,
     height: BALLOON_BASE_SIZE * BALLOON_MAX_SCALE,
@@ -152,15 +74,4 @@ const styles = StyleSheet.create({
     borderRadius: BALLOON_BASE_SIZE / 2,
     backgroundColor: '#ef5350',
   },
-  balloonPassed: { backgroundColor: '#66bb6a' },
-  info: { fontSize: 15, textAlign: 'center', color: '#555' },
-  error: { fontSize: 15, color: '#d32f2f' },
-  buttons: { flexDirection: 'row', gap: 12 },
-  button: {
-    backgroundColor: '#1976d2',
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

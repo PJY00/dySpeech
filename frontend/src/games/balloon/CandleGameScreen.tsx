@@ -1,186 +1,98 @@
-// UI: 풍선 게임과 같은 판정(balloonLogic)을 쓰고, 표시 객체만 촛불로 바꾼 화면.
-// 목표 음량 이상을 유지할수록 불꽃 색이 실제 불꽃 온도 순서대로 변하고,
-// 목표 시간만큼 유지해 목표 색(푸른 흰색)에 도달하면 통과.
-// 기준 음량(baselineDb)은 앱 시작 시 측정된 값을 prop으로 받는다.
-import { useCallback, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { frameToDb } from '../../shared/audio/audio';
-import { MicFrame, useMic } from '../../shared/audio/tempUseMic';
-import {
-  BalloonState,
-  initialBalloonState,
-  stepBalloon,
-  TARGET_DELTA_DB,
-  TARGET_HOLD_SECONDS,
-} from './balloonLogic';
+// 목표 음량 이상을 유지할수록 불꽃 색이 실제 불꽃 온도 순서(어두운 빨강 → 주황 → 노랑 → 흰색 → 푸른 흰색)로 변하고,
+// 목표 시간만큼 유지해 목표 색에 도달하면 통과.
+import { useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import type { BalloonGameProps } from './gameProps';
+import { BalloonState, MAX_LEVEL, ROUND_SECONDS } from './balloonLogic';
 import { flameColor, flameCoreColor, flameKelvin } from './flameColor';
+import { Button, common, NoticeFrame, ResultPanel } from './RoundPanel';
+import { useBalloonRound } from './useBalloonRound';
 
-type Phase = 'ready' | 'playing' | 'passed';
-
-// 불꽃 크기는 고정, 색만 변한다.
 const FLAME_WIDTH = 70;
 const FLAME_HEIGHT = 130;
-/** 목표 음량 아래로 떨어졌을 때 색이 식는 속도 (heat 1.0 = 목표 색, 초당) */
+/** 목표 음량 아래로 떨어졌을 때 색이 식는 속도 */
 const COOL_PER_SEC = 0.5;
 
-type Props = {
-  /** 기준 음량 (dBFS). 앱 시작 시 측정한 값 */
-  baselineDb: number;
-};
-
-export default function CandleGameScreen({ baselineDb }: Props) {
-  const [phase, setPhase] = useState<Phase>('ready');
-  const [candle, setCandle] = useState<BalloonState>(initialBalloonState);
-  const [dbDiff, setDbDiff] = useState(0);
-  // 불꽃 색 진행도 0~1 (1 = 목표 색). 유지 시간에 따라 오르고, 소리가 작아지면 서서히 식는다.
+export function CandleGameScreen(props: BalloonGameProps) {
   const [heat, setHeat] = useState(0);
-
-  // 프레임 콜백에서 쓰는 값은 ref로 들고 있어야 최신 값이 보장된다.
-  const phaseRef = useRef<Phase>('ready');
-  const baselineRef = useRef(baselineDb);
-  baselineRef.current = baselineDb;
-  const candleRef = useRef<BalloonState>(initialBalloonState);
   const heatRef = useRef(0);
+  const holdSecondsRef = useRef(1);
 
-  const changePhase = (next: Phase) => {
-    phaseRef.current = next;
-    setPhase(next);
-  };
+  const round = useBalloonRound({
+    ...props,
+    game: 'candle',
+    onStep: (s: BalloonState, dt: number) => {
+      const want = Math.min(1, s.holdTime / holdSecondsRef.current);
+      heatRef.current = want >= heatRef.current ? want : Math.max(want, heatRef.current - COOL_PER_SEC * dt);
+      setHeat(heatRef.current);
+    },
+  });
+  const { phase, state, target, lastRun } = round;
+  holdSecondsRef.current = target.holdSeconds;
 
-  const handleFrame = useCallback(({ samples, sampleRate }: MicFrame) => {
-    if (phaseRef.current !== 'playing') return;
+  const notice = NoticeFrame({ title: '촛불 달구기', phase, error: round.error, onExit: round.exit });
+  if (notice) return notice;
 
-    const dt = samples.length / sampleRate;
-    const diff = frameToDb(samples) - baselineRef.current;
-
-    candleRef.current = stepBalloon(candleRef.current, diff, dt);
-    setDbDiff(diff);
-    setCandle(candleRef.current);
-
-    // 유지 시간이 목표에 가까울수록 heat가 1에 가까워진다. 내려갈 때는 서서히.
-    const wantHeat = Math.min(
-      1,
-      candleRef.current.holdTime / TARGET_HOLD_SECONDS,
-    );
-    heatRef.current =
-      wantHeat >= heatRef.current
-        ? wantHeat
-        : Math.max(wantHeat, heatRef.current - COOL_PER_SEC * dt);
-    setHeat(heatRef.current);
-
-    if (candleRef.current.passed) {
-      changePhase('passed');
-      void stop();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { start, stop, error } = useMic(handleFrame);
-
-  const resetState = () => {
-    candleRef.current = initialBalloonState;
-    setCandle(initialBalloonState);
+  const start = async () => {
     heatRef.current = 0;
     setHeat(0);
+    await round.start();
   };
-
-  const startGame = async () => {
-    resetState();
-    setDbDiff(0);
-    changePhase('playing');
-    await start();
-  };
-
-  const reset = async () => {
-    await stop();
-    resetState();
-    changePhase('ready');
-  };
+  const rule = `기준보다 +${target.deltaDb}dB 이상으로 ${target.holdSeconds}초 동안 유지하세요.`;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>촛불 달구기</Text>
-
-      <Text style={styles.guide}>
-        {phase === 'ready' &&
-          `"아~" 소리를 기준보다 크게(+${TARGET_DELTA_DB}dB 이상) ${TARGET_HOLD_SECONDS}초 동안 유지하면 불꽃이 뜨거워져요.`}
-        {phase === 'playing' &&
-          `기준보다 크게(+${TARGET_DELTA_DB}dB 이상) ${TARGET_HOLD_SECONDS}초 동안 유지하세요.`}
-        {phase === 'passed' && '가장 뜨거운 불꽃이 됐어요! 🎉'}
+    <View style={common.container}>
+      <Text style={common.title}>촛불 달구기</Text>
+      <Text style={common.level}>
+        단계 {props.level} / {MAX_LEVEL} · {props.roundIndex}번째 연습
       </Text>
 
-      <View style={styles.candleArea}>
+      {phase === 'finished' && lastRun ? (
+        <ResultPanel run={lastRun} target={target} onContinue={round.confirm} />
+      ) : (
+        <Text style={common.guide}>
+          {phase === 'ready' ? `"아~" 소리를 내 보세요. ${rule} 유지할수록 불꽃이 뜨거워져요.` : rule}
+        </Text>
+      )}
+
+      <View style={s.candleArea}>
         {/* 불꽃: 크기는 고정, 색이 온도에 따라 변한다 */}
-        <View style={styles.flameArea}>
-          <View
-            style={[styles.flameOuter, { backgroundColor: flameColor(heat) }]}
-          >
-            <View
-              style={[
-                styles.flameInner,
-                { backgroundColor: flameCoreColor(heat) },
-              ]}
-            />
+        <View style={s.flameArea}>
+          <View style={[s.flameOuter, { backgroundColor: flameColor(heat) }]}>
+            <View style={[s.flameInner, { backgroundColor: flameCoreColor(heat) }]} />
           </View>
         </View>
-        <View style={styles.wick} />
-        <View style={styles.wax} />
+        <View style={s.wick} />
+        <View style={s.wax} />
       </View>
 
-      <View>
-        <Text style={styles.info}>
-          기준 {baselineDb.toFixed(1)} dB
-          {phase !== 'ready' &&
-            ` / 현재 차이 ${dbDiff >= 0 ? '+' : ''}${dbDiff.toFixed(1)} dB`}
-        </Text>
-        {phase !== 'ready' && (
-          <>
-            <Text style={styles.info}>
-              유지 {candle.holdTime.toFixed(1)} / {TARGET_HOLD_SECONDS}초
-            </Text>
-            <Text style={styles.info}>불꽃 온도 약 {flameKelvin(heat)}K</Text>
-          </>
-        )}
-      </View>
+      {phase === 'playing' && (
+        <View>
+          <Text style={common.info}>
+            현재 차이 {round.dbDiff >= 0 ? '+' : ''}
+            {round.dbDiff.toFixed(1)} dB
+          </Text>
+          <Text style={common.info}>
+            유지 {state.holdTime.toFixed(1)} / {target.holdSeconds}초 · 남은 시간 {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)}초
+          </Text>
+          <Text style={common.info}>불꽃 온도 약 {flameKelvin(heat)}K</Text>
+        </View>
+      )}
 
-      {error && <Text style={styles.error}>{error}</Text>}
-
-      <View style={styles.buttons}>
-        {phase === 'ready' && <Button label="시작" onPress={startGame} />}
-        {phase !== 'ready' && <Button label="다시 하기" onPress={reset} />}
-      </View>
+      {phase !== 'finished' && (
+        <View style={common.buttons}>
+          {phase === 'ready' && <Button label="시작" onPress={start} />}
+          <Button label="나가기" onPress={round.exit} light />
+        </View>
+      )}
     </View>
   );
 }
 
-function Button({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable style={styles.button} onPress={onPress}>
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 16,
-  },
-  title: { fontSize: 28, fontWeight: '700' },
-  guide: { fontSize: 16, textAlign: 'center', color: '#333' },
-  candleArea: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  flameArea: {
-    height: FLAME_HEIGHT + 10,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
+const s = StyleSheet.create({
+  candleArea: { alignItems: 'center', justifyContent: 'flex-end' },
+  flameArea: { height: FLAME_HEIGHT + 10, justifyContent: 'flex-end', alignItems: 'center' },
   flameOuter: {
     width: FLAME_WIDTH,
     height: FLAME_HEIGHT,
@@ -189,16 +101,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingBottom: 4,
   },
-  flameInner: {
-    width: FLAME_WIDTH * 0.5,
-    height: FLAME_HEIGHT * 0.55,
-    borderRadius: 100,
-  },
-  wick: {
-    width: 4,
-    height: 16,
-    backgroundColor: '#424242',
-  },
+  flameInner: { width: FLAME_WIDTH * 0.5, height: FLAME_HEIGHT * 0.55, borderRadius: 100 },
+  wick: { width: 4, height: 16, backgroundColor: '#424242' },
   wax: {
     width: 70,
     height: 110,
@@ -208,14 +112,4 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
   },
-  info: { fontSize: 15, textAlign: 'center', color: '#555' },
-  error: { fontSize: 15, color: '#d32f2f' },
-  buttons: { flexDirection: 'row', gap: 12 },
-  button: {
-    backgroundColor: '#1976d2',
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
