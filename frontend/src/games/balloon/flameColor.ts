@@ -9,8 +9,8 @@ const STOPS: Stop[] = [
   { heat: 0.25, kelvin: 1000, rgb: [232, 64, 12] }, // 빨강-주황 (촛불 가장자리)
   { heat: 0.5, kelvin: 1400, rgb: [255, 154, 31] }, // 주황 (일반적인 촛불)
   { heat: 0.7, kelvin: 1800, rgb: [255, 210, 74] }, // 노랑
-  { heat: 0.85, kelvin: 3000, rgb: [255, 243, 196] }, // 흰빛 도는 노랑
-  { heat: 1.0, kelvin: 6500, rgb: [188, 217, 255] }, // 푸른 흰색 (가장 뜨거운 불꽃)
+  { heat: 0.85, kelvin: 3000, rgb: [255, 255, 240] },
+  { heat: 1.0, kelvin: 6500, rgb: [120, 190, 255] },
 ];
 
 function lerp(a: number, b: number, t: number): number {
@@ -58,6 +58,19 @@ export function flameCoreColor(heat: number): string {
     }),
   );
 }
+
+// 촛불 배경: 불이 센 만큼 밝고, 꺼져도 완전히 캄캄해지지는 않는다(초가 계속 보이도록 최소 밝기를 둔다)
+const SCENE_DARK: [number, number, number] = [38, 38, 51]; // 불이 꺼졌을 때(heat 0)의 가장 어두운 배경
+const SCENE_BRIGHT: [number, number, number] = [255, 244, 220]; // 불이 가장 셀 때(heat 1)의 배경
+
+/** heat(0~1) → 촛불 배경색. 불이 약해지면 어두워지고, 다시 세지면 밝아진다 */
+export function sceneColor(heat: number): string {
+  const t = clamp01(heat);
+  return toHex(SCENE_DARK.map((v, i) => lerp(v, SCENE_BRIGHT[i], t)));
+}
+
+/** 불꽃이 보이는 최소 세기. 이보다 약하면 불이 꺼진 것으로 그린다 */
+export const FLAME_OUT_BELOW = 0.05;
 
 /** heat(0~1) → 표시용 불꽃 온도(K) */
 export function flameKelvin(heat: number): number {

@@ -1,45 +1,82 @@
-// [임시 연결 지점] 라운드 중 마이크 음량을 받는 곳. 게임 로직은 이 파일의 인터페이스(RoundInput)만 안다.
+// 라운드 중 마이크 음량을 받는 곳. 앱 측정 블록의 녹음기(MeasurementRecorder)를 쓴다.
+// 게임 로직(useBalloonRound)은 이 파일의 인터페이스(RoundInput)만 안다.
 //
-// ── 측정 블록(#20~#24)이 main에 들어오면 교체하는 방법 ──────────────────────────────
-// 1. 이 파일의 useRoundInput을 MeasurementRecorder로 구현한다. 모양(RoundInput)은 그대로 둔다.
-//      prepareMicrophone() 결과로 status 결정: 'loading' → 'ready' 또는 'denied'(실패하면 'error')
-//      start(): new MeasurementRecorder().start(uuidv4(), (levelDbfs, dtS) => onLevel(levelDbfs, dtS))
-//        - levelDbfs는 말소리 대역 필터를 거친 값이라 frameToDb를 쓰지 않는다
-//      stop(): const left = await recorder.release(); if (left) await discardRecordingFile(left.fileUri)
-//        - 호흡 게임은 녹음을 서버에 올리지 않으므로 만든 WAV는 버린다
-//      VOICED_MARGIN_DB는 measurement/analysis의 VOICE_MARGIN_DB(10dB)를 쓴다
-// 2. gameProps.ts는 지우지 않는다. 앱의 GameProps와 모양이 같고, gameTypes.ts의 위치가 바뀌어도(src/app → src/training) 영향이 없다.
-//      gameProps.ts의 GameRun import만 '../../session/types'로 바꾼다
-// 3. balloonLogic.ts의 median import를 '../../measurement/analysis'로 바꾼다
-// 4. 아래 임시 파일을 지우고 balloonRun.ts의 import를 '../../session'(uuidv4, GameRun)으로 바꾼다
-//      shared/audio/{audio,baseline,noiseFloor,tempUseMic,TempCalibration}, shared/api/gameRun.ts
-// 5. App.tsx는 main 원본으로 되돌리고 games/registry.ts에 balloon, candle을 한 줄씩 추가한다
-//      { game: 'balloon', area: 'breath', title: '풍선 불기', maxLevel: MAX_LEVEL, component: BalloonGameScreen }
-// ───────────────────────────────────────────────────────────────────────────────────────
-import { frameToDb } from '../../shared/audio/audio';
-import { VOICING_MARGIN_DB } from '../../shared/audio/noiseFloor';
-import { useMic } from '../../shared/audio/tempUseMic';
+// - 음량은 말소리 대역(60 Hz~8 kHz) 필터를 거친 dBFS라서 측정 블록 기준값과 바로 비교할 수 있다.
+// - 녹음기는 항상 WAV 파일을 만든다. 호흡 게임은 녹음을 서버에 올리지 않으므로 멈출 때 파일을 지운다.
+// - 마이크는 게임 화면이 뜬 뒤에 열고, 화면이 사라지면 멈춘다(녹음기 두 개를 동시에 쓰지 않기 위해).
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const VOICED_MARGIN_DB = VOICING_MARGIN_DB;
+import { VOICE_MARGIN_DB } from '../../measurement/analysis';
+import { MeasurementRecorder, prepareMicrophone } from '../../measurement/recorder';
+import { discardRecordingFile } from '../../session';
+import { uuidv4 } from '../../session/uuid';
 
+/** 잡음 바닥보다 이만큼(dB) 커야 소리가 난 것으로 본다 (서버·측정 블록과 같은 기준) */
+export const VOICED_MARGIN_DB = VOICE_MARGIN_DB;
+
+/** loading: 마이크 준비 중 / ready: 쓸 수 있음 / denied: 권한 거부 / error: 오류 */
 export type RoundInputStatus = 'loading' | 'ready' | 'denied' | 'error';
 
 export interface RoundInput {
   status: RoundInputStatus;
   error: string | null;
+  /** 마이크를 열고 onLevel을 부르기 시작한다 */
   start: () => Promise<void>;
+  /** 마이크를 멈추고 만든 파일을 지운다(여러 번 불러도 된다) */
   stop: () => Promise<void>;
 }
 
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 /**
- * @param onLevel 프레임마다 호출: 음량(dBFS), 프레임 길이(초)
+ * @param onLevel 프레임마다 호출(약 20ms): 음량(dBFS, 필터 적용), 프레임 길이(초)
  */
 export function useRoundInput(onLevel: (levelDbfs: number, dtS: number) => void): RoundInput {
-  const mic = useMic(({ samples, sampleRate }) => onLevel(frameToDb(samples), samples.length / sampleRate));
-  return {
-    status: mic.error ? 'error' : 'ready',
-    error: mic.error,
-    start: mic.start,
-    stop: mic.stop,
-  };
+  const [status, setStatus] = useState<RoundInputStatus>('loading');
+  const [error, setError] = useState<string | null>(null);
+  const recorderRef = useRef<MeasurementRecorder | null>(null);
+  // 콜백이 바뀌어도 녹음을 다시 시작하지 않도록 ref에 보관
+  const onLevelRef = useRef(onLevel);
+  onLevelRef.current = onLevel;
+
+  const stop = useCallback(async () => {
+    const left = await recorderRef.current?.release();
+    if (left) await discardRecordingFile(left.fileUri);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        if ((await prepareMicrophone()) !== 'granted') {
+          if (!cancelled) setStatus('denied');
+          return;
+        }
+        recorderRef.current = new MeasurementRecorder();
+        if (!cancelled) setStatus('ready');
+      } catch (e) {
+        if (!cancelled) {
+          setError(messageOf(e));
+          setStatus('error');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      void stop();
+    };
+  }, [stop]);
+
+  const start = useCallback(async () => {
+    const recorder = recorderRef.current;
+    if (!recorder) return;
+    try {
+      await recorder.start(uuidv4(), (levelDbfs, dtS) => onLevelRef.current(levelDbfs, dtS));
+    } catch (e) {
+      setError(messageOf(e));
+      setStatus('error');
+    }
+  }, []);
+
+  return { status, error, start, stop };
 }

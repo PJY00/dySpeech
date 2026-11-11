@@ -1,7 +1,7 @@
-// 풍선·촛불이 같이 쓰는 화면 조각: 단추, 상태 안내, 라운드 결과 요약
+// 풍선·촛불이 같이 쓰는 화면 조각: 단추, 상태 안내, 단계 라벨, 라운드 결과 요약
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { BalloonTarget } from './balloonLogic';
+import { BalloonTarget, levelLabel } from './balloonLogic';
 import type { BalloonGameRun } from './balloonRun';
 import type { RoundPhase } from './useBalloonRound';
 
@@ -10,6 +10,17 @@ export function Button({ label, onPress, light }: { label: string; onPress: () =
     <Pressable style={[s.button, light && s.buttonLight]} onPress={onPress}>
       <Text style={[s.buttonText, light && s.buttonTextLight]}>{label}</Text>
     </Pressable>
+  );
+}
+
+/** 이 단계의 목표와, 이전 단계와 달라진 점. 단계마다 무엇이 달라지는지 보이게 한다 */
+export function LevelBadge({ level, maxPhonationTimeS }: { level: number; maxPhonationTimeS?: number | null }) {
+  const label = levelLabel(level, maxPhonationTimeS);
+  return (
+    <View style={s.badge}>
+      <Text style={s.badgeGoal}>{label.goal}</Text>
+      {label.change && <Text style={s.badgeChange}>{label.change}</Text>}
+    </View>
   );
 }
 
@@ -28,7 +39,7 @@ export function NoticeFrame({ title, phase, error, onExit }: { title: string; ph
       <View style={s.center}>
         <Text style={s.title}>{title}</Text>
         <Text style={s.note}>
-          {phase === 'denied' ? '마이크 권한이 필요해요. 설정에서 허용한 뒤 다시 들어와 주세요.' : `마이크를 쓰지 못했어요. ${error ?? ''}`}
+          {phase === 'denied' ? '마이크 권한이 필요해요. 설정에서 마이크를 허용해 주세요.' : `마이크를 쓰지 못했어요. ${error ?? ''}`}
         </Text>
         <Button label="나가기" onPress={onExit} />
       </View>
@@ -82,6 +93,9 @@ const s = StyleSheet.create({
   center: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   title: { fontSize: 28, fontWeight: '700' },
   note: { fontSize: 15, textAlign: 'center', color: '#555' },
+  badge: { alignItems: 'center', gap: 2, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: '#eef3fb' },
+  badgeGoal: { fontSize: 15, fontWeight: '700', color: '#1a4a8a' },
+  badgeChange: { fontSize: 13, color: '#4a6a94' },
   panel: { alignSelf: 'stretch', gap: 10, padding: 16, borderRadius: 12, backgroundColor: '#f5f5f5' },
   panelTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
   row: { gap: 2 },

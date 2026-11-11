@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
-import { GameRun, uuidv4 } from '../../shared/api/gameRun';
+import type { GameRun } from '../../session/types';
+import { uuidv4 } from '../../session/uuid';
 import { BalloonState, BalloonTarget, diffStats, ROUND_SECONDS, summarizeRound } from './balloonLogic';
 
 export type BalloonGameName = 'balloon' | 'candle';

@@ -1,70 +1,72 @@
-// 목표 음량 이상을 유지할수록 불꽃 색이 실제 불꽃 온도 순서(어두운 빨강 → 주황 → 노랑 → 흰색 → 푸른 흰색)로 변하고,
-// 목표 시간만큼 유지해 목표 색에 도달하면 통과.
-import { useRef, useState } from 'react';
+// 촛불 지키기(game = candle, 호흡 영역). 판정은 풍선과 같고 표시 객체만 촛불이다.
+// 센 불꽃(푸른 흰색)으로 시작한다. 소리가 목표만큼 이어지면 불이 유지되고, 못 미치면 불꽃이 작아지고
+// 식은 색(주황 → 어두운 빨강)이 되다가 꺼진다. 불이 약해질수록 배경이 어두워지지만 초는 계속 보인다.
+// 소리가 돌아오면 불꽃도 배경도 다시 밝아진다. 목표 시간만큼 이어서 유지하면 끝.
 import { StyleSheet, Text, View } from 'react-native';
 
+import { MAX_LEVEL, ROUND_SECONDS } from './balloonLogic';
+import { FLAME_OUT_BELOW, flameColor, flameCoreColor, flameKelvin, sceneColor } from './flameColor';
 import type { BalloonGameProps } from './gameProps';
-import { BalloonState, MAX_LEVEL, ROUND_SECONDS } from './balloonLogic';
-import { flameColor, flameCoreColor, flameKelvin } from './flameColor';
-import { Button, common, NoticeFrame, ResultPanel } from './RoundPanel';
+import { Button, common, LevelBadge, NoticeFrame, ResultPanel } from './RoundPanel';
 import { useBalloonRound } from './useBalloonRound';
 
+const TITLE = '촛불 지키기';
 const FLAME_WIDTH = 70;
 const FLAME_HEIGHT = 130;
-/** 목표 음량 아래로 떨어졌을 때 색이 식는 속도 */
-const COOL_PER_SEC = 0.5;
 
 export function CandleGameScreen(props: BalloonGameProps) {
-  const [heat, setHeat] = useState(0);
-  const heatRef = useRef(0);
-  const holdSecondsRef = useRef(1);
-
-  const round = useBalloonRound({
-    ...props,
-    game: 'candle',
-    onStep: (s: BalloonState, dt: number) => {
-      const want = Math.min(1, s.holdTime / holdSecondsRef.current);
-      heatRef.current = want >= heatRef.current ? want : Math.max(want, heatRef.current - COOL_PER_SEC * dt);
-      setHeat(heatRef.current);
-    },
-  });
+  const round = useBalloonRound({ ...props, game: 'candle' });
   const { phase, state, target, lastRun } = round;
-  holdSecondsRef.current = target.holdSeconds;
 
-  const notice = NoticeFrame({ title: '촛불 달구기', phase, error: round.error, onExit: round.exit });
+  const notice = NoticeFrame({ title: TITLE, phase, error: round.error, onExit: round.exit });
   if (notice) return notice;
 
-  const start = async () => {
-    heatRef.current = 0;
-    setHeat(0);
-    await round.start();
-  };
-  const rule = `기준보다 +${target.deltaDb}dB 이상으로 ${target.holdSeconds}초 동안 유지하세요.`;
+  // 불의 세기는 풍선의 크기와 같은 값이다(가득 1 → 꺼짐 0)
+  const heat = state.size;
+  const lit = heat > FLAME_OUT_BELOW;
+  const rule = `기준보다 +${target.deltaDb}dB 이상으로 ${target.holdSeconds}초 동안 이어서 내 주세요.`;
 
   return (
     <View style={common.container}>
-      <Text style={common.title}>촛불 달구기</Text>
+      <Text style={common.title}>{TITLE}</Text>
       <Text style={common.level}>
         단계 {props.level} / {MAX_LEVEL} · {props.roundIndex}번째 연습
       </Text>
+      <LevelBadge level={props.level} maxPhonationTimeS={props.baselines.maxPhonationTimeS} />
 
       {phase === 'finished' && lastRun ? (
         <ResultPanel run={lastRun} target={target} onContinue={round.confirm} />
       ) : (
         <Text style={common.guide}>
-          {phase === 'ready' ? `"아~" 소리를 내 보세요. ${rule} 유지할수록 불꽃이 뜨거워져요.` : rule}
+          {phase === 'ready' && `"아~" 소리를 이어서 내서 촛불이 꺼지지 않게 지켜 주세요. ${rule}`}
+          {phase === 'playing' && `촛불을 지켜 주세요. ${rule}`}
+          {phase === 'ending' && (state.passed ? '목표를 채웠어요! 🎉' : '수고했어요! 👏')}
         </Text>
       )}
 
-      <View style={s.candleArea}>
-        {/* 불꽃: 크기는 고정, 색이 온도에 따라 변한다 */}
-        <View style={s.flameArea}>
-          <View style={[s.flameOuter, { backgroundColor: flameColor(heat) }]}>
-            <View style={[s.flameInner, { backgroundColor: flameCoreColor(heat) }]} />
+      {/* 배경은 불이 약해질수록 어두워지고, 가장 어두울 때도 초가 보이도록 최소 밝기를 둔다 */}
+      <View style={[s.scene, { backgroundColor: sceneColor(heat) }]}>
+        <View style={s.candleArea}>
+          <View style={s.flameArea}>
+            {lit && (
+              <View
+                style={[
+                  s.flameOuter,
+                  { width: FLAME_WIDTH * heat, height: FLAME_HEIGHT * heat, backgroundColor: flameColor(heat) },
+                ]}
+              >
+                <View
+                  style={[
+                    s.flameInner,
+                    { width: FLAME_WIDTH * heat * 0.5, height: FLAME_HEIGHT * heat * 0.55, backgroundColor: flameCoreColor(heat) },
+                  ]}
+                />
+              </View>
+            )}
           </View>
+          <View style={s.wick} />
+          <View style={s.wax} />
         </View>
-        <View style={s.wick} />
-        <View style={s.wax} />
       </View>
 
       {phase === 'playing' && (
@@ -76,13 +78,13 @@ export function CandleGameScreen(props: BalloonGameProps) {
           <Text style={common.info}>
             유지 {state.holdTime.toFixed(1)} / {target.holdSeconds}초 · 남은 시간 {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)}초
           </Text>
-          <Text style={common.info}>불꽃 온도 약 {flameKelvin(heat)}K</Text>
+          {lit && <Text style={common.info}>불꽃 온도 약 {flameKelvin(heat)}K</Text>}
         </View>
       )}
 
-      {phase !== 'finished' && (
+      {phase !== 'finished' && phase !== 'ending' && (
         <View style={common.buttons}>
-          {phase === 'ready' && <Button label="시작" onPress={start} />}
+          {phase === 'ready' && <Button label="시작" onPress={round.start} />}
           <Button label="나가기" onPress={round.exit} light />
         </View>
       )}
@@ -91,18 +93,12 @@ export function CandleGameScreen(props: BalloonGameProps) {
 }
 
 const s = StyleSheet.create({
+  scene: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'flex-end', paddingTop: 16, borderRadius: 16 },
   candleArea: { alignItems: 'center', justifyContent: 'flex-end' },
   flameArea: { height: FLAME_HEIGHT + 10, justifyContent: 'flex-end', alignItems: 'center' },
-  flameOuter: {
-    width: FLAME_WIDTH,
-    height: FLAME_HEIGHT,
-    borderRadius: 100,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 4,
-  },
-  flameInner: { width: FLAME_WIDTH * 0.5, height: FLAME_HEIGHT * 0.55, borderRadius: 100 },
-  wick: { width: 4, height: 16, backgroundColor: '#424242' },
+  flameOuter: { borderRadius: 100, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 4 },
+  flameInner: { borderRadius: 100 },
+  wick: { width: 4, height: 16, backgroundColor: '#6d4c41' },
   wax: {
     width: 70,
     height: 110,

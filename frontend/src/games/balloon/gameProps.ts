@@ -1,4 +1,4 @@
-import type { GameRun } from '../../shared/api/gameRun'; // 앱 구조가 합쳐지면 '../../session/types'
+import type { GameRun } from '../../session/types';
 
 export interface BalloonGameProps {
   /** 기준값(측정 블록 결과). 구하지 못한 값은 null이고, 그때는 게임의 기본값을 쓴다 */
