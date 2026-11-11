@@ -9,6 +9,8 @@ const S3 = 'https://s3.fake/';
 
 type Fault =
   | { kind: 'network' }
+  /** 응답 없이 멈춤(요청 시간 한도로 끊길 때만 실패). 업로드 도중 앱이 꺼진 것을 흉내 낼 때 쓴다 */
+  | { kind: 'hang' }
   | { kind: 'status'; status: number; body: unknown }
   | { kind: 's3'; status: number; code: string };
 
@@ -17,6 +19,8 @@ interface FaultRule {
   pattern: RegExp;
   times: number;
   fault: Fault;
+  /** 맞는 요청 중 앞의 이만큼은 정상으로 처리한다 */
+  skip: number;
 }
 
 export interface FakeSession {
@@ -53,9 +57,9 @@ export class FakeServer {
   private readonly rules: FaultRule[] = [];
   private signature = 0;
 
-  /** method와 경로가 맞는 다음 요청 times개에 fault를 낸다 */
-  fail(method: string, pattern: RegExp, times: number, fault: Fault): void {
-    this.rules.push({ method, pattern, times, fault });
+  /** method와 경로가 맞는 다음 요청 times개에 fault를 낸다. skip을 주면 맞는 요청 중 앞의 skip개는 정상으로 둔다 */
+  fail(method: string, pattern: RegExp, times: number, fault: Fault, skip = 0): void {
+    this.rules.push({ method, pattern, times, fault, skip });
   }
 
   /** 서버 계산이 끝난 것처럼 상태를 바꾼다 */
@@ -72,11 +76,20 @@ export class FakeServer {
     const method = init.method.toUpperCase();
     const body = typeof init.body === 'string' ? JSON.parse(init.body) : init.body;
     this.log.push({ method, url, body: body instanceof Uint8Array ? `<${body.length} bytes>` : body });
-    const rule = this.rules.find((r) => r.times > 0 && r.method === method && r.pattern.test(url));
+    let rule = this.rules.find((r) => r.times > 0 && r.method === method && r.pattern.test(url));
+    if (rule && rule.skip > 0) {
+      rule.skip -= 1;
+      rule = undefined;
+    }
     if (rule) {
       rule.times -= 1;
       const f = rule.fault;
       if (f.kind === 'network') throw new TypeError('Network request failed');
+      if (f.kind === 'hang') {
+        return new Promise<FetchResponseLike>((_, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new TypeError('aborted')), { once: true });
+        });
+      }
       if (f.kind === 'status') return response(f.status, f.body);
       return response(f.status, `<?xml version="1.0"?><Error><Code>${f.code}</Code><Message>fake ${f.code}</Message></Error>`);
     }

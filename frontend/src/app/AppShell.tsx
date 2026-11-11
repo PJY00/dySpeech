@@ -10,6 +10,8 @@ import {
   currentUser,
   discardRecordingFile,
   listSessions,
+  openSession,
+  refreshStatuses,
   resumePending,
   startAutoSync,
   startSession,
@@ -21,11 +23,15 @@ import { initialFlow, reduceFlow, totalRounds, unfinishedOptions } from './flow'
 import type { FlowState } from './flow';
 import { gameBaselines } from './gameTypes';
 import type { GameBaselines, RoundRecording } from './gameTypes';
+import { cardStatus, needsPolling, recentCards } from './labels';
+import type { SessionCard } from './labels';
 import { LevelBook } from './levels';
 import { ChooseScreen, FinishingScreen, HomeScreen, RecordsScreen, ResultScreen, ResumeScreen, RoundEndScreen } from './screens';
 
-/** 결과 확인 간격(3~5초 중 4초) */
+/** 결과 확인 간격(3~5초 중 4초). 메인의 최근 회차 갱신도 같은 간격 */
 const RESULT_POLL_MS = 4000;
+/** 메인에 보여 줄 최근 회차 수 */
+const RECENT_CARDS = 3;
 
 export type DevStart = { start: 'choose' } | { start: 'game'; game: GameName };
 
@@ -49,15 +55,23 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
   const [unfinished, setUnfinished] = useState<Session[]>([]);
   const [progress, setProgress] = useState<SessionProgress | null>(null);
   const [checking, setChecking] = useState(false);
-  const [waiting, setWaiting] = useState(0);
+  const [cards, setCards] = useState<SessionCard[]>([]);
+  const [olderUnsent, setOlderUnsent] = useState(0);
   const [devRuns, setDevRuns] = useState<GameRun[]>([]);
   const session = useRef<Session | null>(null);
   const finishingStarted = useRef(false);
+  /** 지금 화면의 결과 기다리기(4초 상태 확인). 화면을 떠나면 멈춘다. 보내기는 세션 모듈이 계속한다 */
+  const waitAbort = useRef<AbortController | null>(null);
+  const homePolling = useRef(false);
   const levels = useMemo(() => new LevelBook(stateStore), []);
 
-  const refreshWaiting = useCallback(async () => {
+  /** 메인의 최근 회차 카드를 기기 상태로 다시 그린다 */
+  const refreshCards = useCallback(async () => {
     const list = await listSessions();
-    setWaiting(list.filter((s) => s.state === 'queued' || s.state === 'sending' || s.state === 'blocked').length);
+    const shown = recentCards(list, RECENT_CARDS);
+    const shownIds = new Set(shown.map((c) => c.summary.sessionId));
+    setCards(shown);
+    setOlderUnsent(list.filter((x) => !shownIds.has(x.sessionId) && cardStatus(x) === 'unsent').length);
   }, []);
 
   // 앱 시작: 못 보낸 세션 이어서 보내기, 끝나지 않은 회차 묻기, 남은 녹음 파일 정리
@@ -73,13 +87,38 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
           setUnfinished(r.unfinished);
           dispatch({ type: 'unfinished' });
         }
-        await refreshWaiting();
+        await refreshCards();
+        // resumePending은 보내기를 뒤에서 시작한다. 시작된 뒤(보내는 중) 카드로 다시 그린다
+        setTimeout(() => void refreshCards(), 1000);
       } catch (e) {
         setNotice(`시작 처리 중 오류: ${String(e)}`);
       }
     })();
-    return startAutoSync();
-  }, [dev, refreshWaiting]);
+    return startAutoSync(() => void refreshCards());
+  }, [dev, refreshCards]);
+
+  // 화면이 사라지면 결과 기다리기를 멈춘다
+  useEffect(() => () => waitAbort.current?.abort(), []);
+
+  // 메인에 있는 동안: 보내는 중·계산 중인 카드가 있으면 4초마다 갱신, 없으면 멈춤
+  const pollHome = flow.screen.name === 'home' && !dev && needsPolling(cards);
+  useEffect(() => {
+    if (!pollHome) return;
+    const timer = setInterval(() => {
+      if (homePolling.current) return;
+      homePolling.current = true;
+      void (async () => {
+        try {
+          await refreshStatuses();
+        } catch (e) {
+          log('refresh_error', { message: String(e) });
+        }
+        await refreshCards();
+        homePolling.current = false;
+      })();
+    }, RESULT_POLL_MS);
+    return () => clearInterval(timer);
+  }, [pollHome, refreshCards]);
 
   async function start(purpose: 'training' | 'retest') {
     setNotice(null);
@@ -119,13 +158,49 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
     dispatch({ type: 'roundEnded', run, nextLevel });
   }
 
+  /** 결과 화면의 결과 기다리기. 앞의 기다리기는 멈추고 새로 시작한다 */
   async function waitResult(s: Session) {
+    waitAbort.current?.abort();
+    const ac = new AbortController();
+    waitAbort.current = ac;
     setChecking(true);
     try {
-      setProgress(await s.waitForResult({ intervalMs: RESULT_POLL_MS, onProgress: setProgress }));
+      const p = await s.waitForResult({
+        intervalMs: RESULT_POLL_MS,
+        signal: ac.signal,
+        onProgress: (x) => {
+          if (!ac.signal.aborted) setProgress(x);
+        },
+      });
+      if (!ac.signal.aborted) setProgress(p);
     } finally {
-      setChecking(false);
+      if (waitAbort.current === ac) {
+        waitAbort.current = null;
+        setChecking(false);
+      }
     }
+  }
+
+  /** 결과 기다리기만 멈춘다(보내기는 계속) */
+  function stopWaiting() {
+    waitAbort.current?.abort();
+    waitAbort.current = null;
+    setChecking(false);
+  }
+
+  /** 메인의 카드를 눌러 그 회차 결과 화면을 연다. 보내는 중·계산 중이면 결과를 기다린다 */
+  async function openResult(sessionId: string) {
+    const s = await openSession(sessionId);
+    if (!s) {
+      await refreshCards();
+      return;
+    }
+    session.current = s;
+    const p = s.status();
+    setProgress(p);
+    dispatch({ type: 'openResult' });
+    const status = cardStatus({ state: p.state, lastErrorCode: p.lastError?.code ?? null });
+    if (status === 'sending' || status === 'processing') void waitResult(s);
   }
 
   // 오늘 훈련 끝·반복 측정 끝: complete → 결과(done·failed까지 4초 간격 확인)
@@ -143,21 +218,26 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
         dispatch({ type: 'finished' });
         return;
       }
+      // 저장하는 동안 메인으로 가면 결과 기다리기를 시작하지 않는다(보내기는 complete가 시작해 계속 돈다)
+      const left = new AbortController();
+      waitAbort.current = left;
       await s.complete();
+      if (left.signal.aborted) return;
       setProgress(s.status());
       dispatch({ type: 'finished' });
       await waitResult(s);
-      await refreshWaiting();
     })();
-  }, [flow.screen.name, dev, devRuns, refreshWaiting]);
+  }, [flow.screen.name, dev, devRuns]);
 
+  /** 메인으로: 이 화면의 결과 기다리기만 멈추고, 보내기·서버 계산은 그대로 둔다 */
   function goHome() {
+    stopWaiting();
     session.current = null;
     setProgress(null);
     setDevRuns([]);
     finishingStarted.current = false;
     dispatch({ type: 'home' });
-    void refreshWaiting();
+    void refreshCards();
   }
 
   const screen = flow.screen;
@@ -217,7 +297,7 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
         />
       );
     case 'finishing':
-      return <FinishingScreen progress={progress} />;
+      return <FinishingScreen progress={progress} onHome={goHome} />;
     case 'result':
       return (
         <ResultScreen
@@ -234,10 +314,12 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
       return (
         <HomeScreen
           notice={notice}
-          waiting={waiting}
+          cards={cards}
+          olderUnsent={olderUnsent}
           onTraining={() => void start('training')}
           onRetest={() => void start('retest')}
           onRecords={() => dispatch({ type: 'records' })}
+          onOpen={(id) => void openResult(id)}
         />
       );
   }

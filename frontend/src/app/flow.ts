@@ -35,6 +35,8 @@ export type FlowAction =
   | { type: 'finish' }
   | { type: 'finished' }
   | { type: 'records' }
+  /** 메인의 최근 회차 카드를 눌러 그 회차 결과 화면을 연다 */
+  | { type: 'openResult' }
   | { type: 'home' };
 
 export const initialFlow = (screen: Screen = { name: 'home' }, purpose: Purpose | null = null): FlowState => ({
@@ -74,6 +76,8 @@ export function reduceFlow(state: FlowState, action: FlowAction): FlowState {
       return s.name === 'finishing' ? { ...state, screen: { name: 'result' } } : state;
     case 'records':
       return s.name === 'home' ? { ...state, screen: { name: 'records' } } : state;
+    case 'openResult':
+      return s.name === 'home' ? { ...initialFlow(), screen: { name: 'result' } } : state;
     case 'home':
       return initialFlow();
   }

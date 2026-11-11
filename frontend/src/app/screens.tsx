@@ -1,20 +1,24 @@
 // 앱 화면들(표시만). 흐름과 세션 처리는 AppShell.tsx가 한다.
 
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { GAME_AREAS, gamesInArea } from '../games/registry';
 import type { GameEntry } from '../games/registry';
 import type { GameRun, Session, SessionProgress } from '../session';
 import { unfinishedOptions } from './flow';
-import { formatMeasurement, METRIC_LABELS, STATE_LABELS } from './labels';
+import { CARD_LABELS, cardStatus, formatMeasurement, METRIC_LABELS, STATE_LABELS } from './labels';
+import type { SessionCard } from './labels';
 import { Button, Row, Screen, ui } from './ui';
 
 export function HomeScreen(props: {
   notice: string | null;
-  waiting: number;
+  cards: SessionCard[];
+  /** 카드에 보이지 않는 더 오래된 회차 중 보내지 못한 것 */
+  olderUnsent: number;
   onTraining: () => void;
   onRetest: () => void;
   onRecords: () => void;
+  onOpen: (sessionId: string) => void;
 }) {
   return (
     <Screen>
@@ -24,10 +28,42 @@ export function HomeScreen(props: {
       <Button label="오늘 훈련 시작" onPress={props.onTraining} />
       <Button label="반복 측정" kind="secondary" onPress={props.onRetest} />
       <Button label="기록" kind="secondary" onPress={props.onRecords} />
-      {props.waiting > 0 && <Text style={ui.note}>아직 서버로 보내지 못한 회차가 {props.waiting}개 있어요. 인터넷에 연결되면 보내요.</Text>}
+      {props.cards.length > 0 && <Text style={ui.heading}>최근 회차</Text>}
+      {props.cards.map((c) => (
+        <SessionCardView key={c.summary.sessionId} card={c} onPress={() => props.onOpen(c.summary.sessionId)} />
+      ))}
+      {props.olderUnsent > 0 && <Text style={ui.note}>그 밖에 보내지 못한 회차가 {props.olderUnsent}개 있어요. 인터넷에 연결되면 보내요.</Text>}
     </Screen>
   );
 }
+
+const CARD_COLORS: Record<SessionCard['status'], string> = {
+  sending: '#1565c0',
+  processing: '#6a1b9a',
+  result: '#1b5e20',
+  unsent: '#b3261e',
+};
+
+function SessionCardView({ card, onPress }: { card: SessionCard; onPress: () => void }) {
+  const s = card.summary;
+  const when = new Date(s.startedAt);
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [ui.card, pressed && ui.dim]}>
+      <Text style={ui.body}>
+        {s.purpose === 'retest' ? '반복 측정' : '훈련'} · {when.getMonth() + 1}월 {when.getDate()}일 {when.getHours()}시 {when.getMinutes()}분
+      </Text>
+      <Text style={[ui.ok, { color: CARD_COLORS[card.status] }]}>{CARD_LABELS[card.status]}</Text>
+      {card.status === 'sending' && s.total > 0 && (
+        <Text style={ui.note}>
+          녹음 올리기 {s.uploaded} / {s.total}
+        </Text>
+      )}
+      {card.status === 'unsent' && s.lastErrorCode && <Text style={ui.note}>다음에 앱을 열거나 돌아올 때 다시 보내요({s.lastErrorCode})</Text>}
+    </Pressable>
+  );
+}
+
+const KEEP_SENDING_NOTE = '앱을 닫아도 다음에 열 때 이어서 보내요.';
 
 export function ResumeScreen(props: { sessions: Session[]; onSend: (s: Session) => void; onDiscard: (s: Session) => void; onDone: () => void }) {
   return (
@@ -110,7 +146,7 @@ export function RoundEndScreen(props: { game: GameEntry | undefined; run: GameRu
   );
 }
 
-export function FinishingScreen({ progress }: { progress: SessionProgress | null }) {
+export function FinishingScreen({ progress, onHome }: { progress: SessionProgress | null; onHome: () => void }) {
   return (
     <Screen>
       <Text style={ui.title}>결과를 기다리고 있어요</Text>
@@ -121,6 +157,8 @@ export function FinishingScreen({ progress }: { progress: SessionProgress | null
           녹음 올리기 {progress.uploaded} / {progress.total}
         </Text>
       )}
+      <Text style={ui.note}>{KEEP_SENDING_NOTE}</Text>
+      <Button label="메인으로" kind="secondary" onPress={onHome} />
     </Screen>
   );
 }
@@ -148,21 +186,31 @@ export function ResultScreen(props: {
   }
   const p = props.progress;
   const server = p?.server;
+  const status = p ? cardStatus({ state: p.state, lastErrorCode: p.lastError?.code ?? null }) : 'sending';
   const headline =
     p?.state === 'done'
       ? '서버 계산이 끝났어요'
       : p?.state === 'failed'
         ? '서버 계산에 실패했어요'
-        : p?.state === 'processing'
-          ? '서버가 아직 계산하고 있어요'
-          : p?.state === 'blocked'
-            ? '보내기 중 오류가 났어요'
-            : '아직 보내지 못했어요';
+        : p?.state === 'blocked'
+          ? '보내기 중 오류가 났어요'
+          : status === 'processing'
+            ? '서버가 아직 계산하고 있어요'
+            : status === 'sending'
+              ? '결과를 보내고 있어요'
+              : '아직 보내지 못했어요';
+  const waiting = status === 'sending' || status === 'processing';
   return (
     <Screen>
       <Text style={ui.title}>{headline}</Text>
-      {p?.state === 'queued' && <Text style={ui.body}>인터넷 연결을 확인해 주세요. 앱을 다시 열면 이어서 보내요.</Text>}
-      {p?.state === 'processing' && <Text style={ui.body}>잠시 뒤에 다시 확인해 주세요.</Text>}
+      {waiting && props.checking && <ActivityIndicator size="large" />}
+      {status === 'sending' && p && p.total > 0 && (
+        <Text style={ui.note}>
+          녹음 올리기 {p.uploaded} / {p.total}
+        </Text>
+      )}
+      {status === 'unsent' && p?.state === 'queued' && <Text style={ui.body}>인터넷 연결을 확인해 주세요. 앱을 다시 열거나 돌아오면 이어서 보내요.</Text>}
+      {waiting && <Text style={ui.note}>{KEEP_SENDING_NOTE}</Text>}
       {server?.error && <Text style={ui.warn}>오류 코드: {server.error.code}</Text>}
       {p?.lastError && p.state !== 'done' && (
         <Text style={ui.warn}>
@@ -177,7 +225,7 @@ export function ResultScreen(props: {
       {p?.state !== 'done' && p?.state !== 'failed' && (
         <Button label={props.checking ? '확인하는 중…' : '다시 확인'} onPress={props.onCheck} disabled={props.checking} />
       )}
-      <Button label="처음으로" kind="secondary" onPress={props.onHome} />
+      <Button label="메인으로" kind="secondary" onPress={props.onHome} />
     </Screen>
   );
 }

@@ -26,7 +26,7 @@ import { MeasurementBlock } from '../measurement';
 // 앱 시작 때 한 번: 못 보낸 세션 이어서 보내기 + 앞으로 올 때마다 다시 보내기
 // resumePending은 어느 세션에도 없는 녹음 파일(녹음 도중 앱이 꺼져 남은 WAV)도 지운다. 녹음 중에는 부르지 않는다
 const { unfinished } = await resumePending(); // complete 전에 멈춘 세션: complete() 또는 discard()
-const stopAutoSync = startAutoSync();
+const stopAutoSync = startAutoSync(() => refreshList()); // 앞으로 올 때 syncNow, 화면 목록 갱신 콜백(선택)
 
 // 1) 세션 시작: 'training' | 'retest' | 'agc_test'
 const session = await startSession('training');
@@ -49,7 +49,8 @@ await session.addRecording({ kind: 'game', gameRunId: run.game_run_id, fileUri }
 
 // 5) 끝
 await session.complete(); // 끝난 시각을 고정해 저장하고 보내기 시작. 오프라인이어도 바로 돌아온다
-const p = await session.waitForResult({ onProgress: (x) => console.log(x.state) });
+const leave = new AbortController(); // 결과 화면을 떠날 때 leave.abort(): 기다리기만 멈추고 보내기는 계속
+const p = await session.waitForResult({ onProgress: (x) => console.log(x.state), signal: leave.signal });
 // p.state: 'done' | 'failed' | 'processing'(3분 넘게 처리 중) | 'queued'(못 보냄, 다음에 다시) | 'blocked'
 // p.server: GET /v1/sessions/{id} 응답(서버 지표, failed면 error.code)
 ```
@@ -58,6 +59,16 @@ const p = await session.waitForResult({ onProgress: (x) => console.log(x.state) 
 - 게임은 측정 블록의 `onDone` 뒤에 마이크를 연다(녹음기 두 개를 동시에 쓰지 않기 위해).
 - 음량은 dBFS 상대값이다. 실제 소리 크기(dB SPL)가 아니다.
 - 개발용: `startNewDevUser()`로 새 사용자를 만들면 그 사용자의 세션은 `client_meta.dev = true`로 보내고, ID는 `devUserIds()`에 남는다(시험 데이터 정리 대상).
+
+## 화면을 떠나거나 앱을 꺼도 이어 가기
+
+- `complete()`는 세션을 `queued`로 저장하고 곧바로 돌아온다. 보내기는 세션 모듈이 화면과 따로 돌린다. 화면을 옮겨도 멈추지 않는다.
+- 결과 화면은 `waitForResult({ signal })`로 4초마다 상태를 확인한다. 화면을 떠날 때 `abort()`하면 그 확인만 멈춘다.
+- 앱이 앞으로 오면 `startAutoSync`가 `syncNow()`를 부른다. 못 보낸 세션을 이어서 보내고, 서버 계산 중인 세션 상태를 갱신한다.
+- 앱을 다시 열면 `resumePending()`이 이어서 보낸다. 업로드 도중 꺼져 `sending`으로 남은 세션도 `queued`로 되돌려, 남은 녹음만 올리고 complete까지 간다.
+- `refreshStatuses()`: 서버 계산 중인 세션 상태만 다시 읽고, 보내기는 새로 시작하지 않는다. 메인 화면의 4초 갱신용이다.
+- `listSessions()`의 `lastErrorCode`, `uploaded`, `total`로 회차 카드(보내는 중 / 서버 계산 중 / 결과 나옴 / 보내지 못함)를 만든다(`src/app/labels.ts`).
+- 앱이 꺼진 동안에는 보내지 않는다. 그러려면 백그라운드 작업용 네이티브 모듈과 APK 다시 빌드가 필요하다.
 
 ## 상태와 재시도
 
