@@ -188,7 +188,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials }: Measurem
       const r = computeBlock({
         noise: a.get('noise')?.levels ?? null,
         trials: trialLevels,
-        sentence: sentence ? { levels: sentence.levels, f0: sentence.f0 ?? [] } : null,
+        sentence: sentence ? { levels: sentence.levels, f0: sentence.f0 ?? [], syllables: EVAL_SENTENCE.syllables } : null,
         calibration: glideRange.current,
         storedCalibration: session.calibration(),
       });
@@ -248,6 +248,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials }: Measurem
         <Row label="잡음 바닥" value={show(b.noiseFloorDbfs, 'dBFS')} />
         <Row label='"아" 음량' value={show(b.sustainedLevelDbfs, 'dBFS')} />
         <Row label="최대발성지속시간" value={show(b.maxPhonationTimeS, '초')} />
+        <Row label="조음속도" value={show(b.articulationRateSps, '음절/초')} />
         <Row label="기본주파수 중앙값" value={show(b.f0MedianHz, 'Hz', 0)} />
         <Row label="기본주파수 탐색 범위" value={`${b.f0SearchRangeHz.min.toFixed(0)}~${b.f0SearchRangeHz.max.toFixed(0)} Hz`} />
         <Text style={s.note}>기기에서 계산한 값이에요. 공식 값은 서버가 계산해요. 음량은 상대값(dBFS)이에요.</Text>

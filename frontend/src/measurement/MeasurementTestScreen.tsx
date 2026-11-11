@@ -88,6 +88,7 @@ export function MeasurementTestScreen() {
         ['noise_floor', baselines?.noiseFloorDbfs],
         ['sustained_level', baselines?.sustainedLevelDbfs],
         ['max_phonation_time', baselines?.maxPhonationTimeS],
+        ['articulation_rate', baselines?.articulationRateSps],
         ['f0_median', baselines?.f0MedianHz],
       ].map(([k, v]) => [k as string, v as number | null | undefined]),
     );

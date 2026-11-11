@@ -40,6 +40,7 @@ b.sustainedLevelDbfs; //  "아" 음량(dBFS)
 b.f0MedianHz; //          기본주파수 중앙값(Hz)
 b.f0SearchRangeHz; //     기본주파수 탐색 범위(Hz, 서버와 같은 규칙)
 b.maxPhonationTimeS; //   최대발성지속시간(초)
+b.articulationRateSps; // 조음속도(음절/초) = 21(s1 음절 수) ÷ 휴지를 뺀 발화 시간(초)
 
 // 4) 라운드가 끝날 때마다(api.md 7.2 형식 그대로, success_rate_pct는 0~100)
 await session.addGameRun(run);
@@ -98,7 +99,7 @@ const p = await session.waitForResult({ onProgress: (x) => console.log(x.state) 
 | 3 | `eval_sentence`(s1) | "다 읽었어요" 또는 소리 뒤 2초 조용하면 자동, 최대 30초 |
 
 - 녹음마다 검사한다. 소리가 없거나 짧으면 "다시 하기"(또는 "이대로 쓰기"), WAV 형식이 다르면 다시 하기만 된다.
-- 기기 지표 4개(`noise_floor`, `max_phonation_time`, `sustained_level`, `f0_median`)를 서버와 같은 정의로 계산해 `device_measurements`로 보낸다. 공식 값은 서버 값이다.
+- 기기 지표 5개(`noise_floor`, `max_phonation_time`, `sustained_level`, `articulation_rate`, `f0_median`)를 서버와 같은 정의로 계산해 `device_measurements`로 보낸다. 공식 값은 서버 값이다. 기기는 발화를 음량으로만 나누므로 조음속도가 서버(발화 검출 사용)와 다를 수 있다.
 - 음량과 기본주파수는 서버와 같은 대역에서 잰다: 60 Hz 고역 통과 + 8 kHz 저역 통과(각 4차 버터워스, 녹음 파일은 앞뒤로 두 번). 그래서 기기 잡음 바닥이 서버 값과 맞고, 게임의 발성 기준(잡음 바닥 + 10 dB)도 서버와 같은 기준이 된다.
 - 게임이 실시간 음량을 잴 때도 `VoiceBandFilter`(`src/measurement`)를 거친 뒤 재야 측정 블록 기준값과 비교할 수 있다.
 - 헤드셋이 유선(3.5 mm 또는 USB-C)이 아니면 경고만 띄운다.

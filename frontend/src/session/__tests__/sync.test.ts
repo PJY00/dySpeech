@@ -244,6 +244,7 @@ test('첫 회차만 캘리브레이션이 필요하고, 기준값은 사용자�
     sustainedLevelDbfs: -20,
     f0MedianHz: 120,
     maxPhonationTimeS: 7.5,
+    articulationRateSps: 5,
     f0RangeHz: { min: 116, max: 300 },
     f0SearchRangeHz: { min: 75, max: 360 },
   };

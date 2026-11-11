@@ -72,8 +72,14 @@ export class MeasurementRecorder {
   private readonly recorder = new AudioRecorder();
   private configured = false;
 
-  /** onLevel(음량 dBFS, 버퍼 길이 초)는 약 20 ms마다 불린다. 음량은 말소리 대역(60 Hz~8 kHz) 필터를 거친 값 */
-  async start(recordingId: string, onLevel: (levelDbfs: number, dtS: number) => void): Promise<void> {
+  /**
+   * onLevel(음량 dBFS, 버퍼 길이 초, 원래 표본, 샘플레이트)은 약 20 ms마다 불린다
+   * 음량은 말소리 대역(60 Hz~8 kHz) 필터를 거친 값, 표본은 필터 전 값(게임의 실시간 분석용)
+   */
+  async start(
+    recordingId: string,
+    onLevel: (levelDbfs: number, dtS: number, samples: Float32Array, sampleRate: number) => void,
+  ): Promise<void> {
     let filter: VoiceBandFilter | null = null;
     if (!this.configured) {
       const r = this.recorder.enableFileOutput(WAV_FILE_OPTIONS);
@@ -84,8 +90,9 @@ export class MeasurementRecorder {
       { sampleRate: RECORDING_SAMPLE_RATE, bufferLength: CALLBACK_FRAMES, channelCount: 1 },
       ({ buffer }) => {
         if (!filter) filter = new VoiceBandFilter(buffer.sampleRate);
-        const x = filter.process(buffer.getChannelData(0));
-        onLevel(bufferLevelDbfs(x), x.length / buffer.sampleRate);
+        const raw = buffer.getChannelData(0);
+        const x = filter.process(raw);
+        onLevel(bufferLevelDbfs(x), x.length / buffer.sampleRate, raw, buffer.sampleRate);
       },
     );
     if (cb.status === 'error') throw new Error(`음량 콜백 설정 실패: ${cb.message}`);

@@ -16,12 +16,14 @@
 `registry.ts`의 `GAMES`에 한 줄을 넣는다.
 
 ```ts
-import { GuideReadingGame } from './guide_reading';
+import { GuideReadingGame, MAX_LEVEL as GUIDE_READING_MAX_LEVEL } from './guide_reading';
 
 export const GAMES: readonly GameEntry[] = [
-  { game: 'guide_reading', area: 'rate', title: '노래방 따라 읽기', description: '안내 막대를 따라 읽어요', maxLevel: 5, component: GuideReadingGame },
+  { game: 'guide_reading', area: 'rate', title: '노래방 따라 읽기', description: '파란 안내를 따라 같은 빠르기로 읽어요', maxLevel: GUIDE_READING_MAX_LEVEL, component: GuideReadingGame },
 ];
 ```
+
+등록된 게임: `guide_reading`(말속도, `guide_reading/README.md`)
 
 | 필드 | 뜻 |
 |---|---|
@@ -42,9 +44,11 @@ interface GameProps {
     f0MedianHz: number | null; //          기본주파수 중앙값(Hz)
     f0SearchRangeHz: { min: number; max: number }; // 기본주파수 탐색 범위(Hz). 캘리브레이션이 없으면 75~500
     maxPhonationTimeS: number | null; //   최대발성지속시간(초)
+    articulationRateSps: number | null; // 조음속도(음절/초, s1 낭독)
   };
   level: number; //       현재 단계(1부터). 앱이 게임별로 저장해 둔 값
   roundIndex: number; //  이번 회차에서 이 게임의 몇 번째 라운드인지(1부터)
+  userKey: string; //     게임이 자기 상태를 사용자별로 저장할 때 쓰는 키(개발용 바로가기는 'dev')
   onRoundEnd: (run: GameRun, recording?: { fileUri: string }) => void;
   onExit: () => void;
 }
@@ -116,4 +120,4 @@ export function SpaceshipRound({ baselines, level, roundIndex, onRoundEnd, onExi
 | `game-select` | 임시 기준값으로 게임 선택부터. 서버로 보내지 않음 |
 | `game:<게임 이름>` | 임시 기준값으로 그 게임부터. 서버로 보내지 않음. 예: `game:guide_reading` |
 
-임시 기준값: 잡음 바닥 −60 dBFS, "아" 음량 −25 dBFS, 기본주파수 중앙값 150 Hz, 탐색 범위 75~500 Hz, 최대발성지속시간 10초. 바로가기로 한 라운드 기록은 결과 화면과 Metro 로그(`[app] dev_runs`)에서 본다.
+임시 기준값: 잡음 바닥 −60 dBFS, "아" 음량 −25 dBFS, 기본주파수 중앙값 150 Hz, 탐색 범위 75~500 Hz, 최대발성지속시간 10초, 조음속도 4.0음절/초. 바로가기로 한 라운드 기록은 결과 화면과 Metro 로그(`[app] dev_runs`)에서 본다.

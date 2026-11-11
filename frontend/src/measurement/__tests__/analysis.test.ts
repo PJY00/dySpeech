@@ -92,7 +92,7 @@ test('측정 블록 전체: 기기 지표 4개(단위 포함)와 기준값', () 
   const result = computeBlock({
     noise: noiseLevels,
     trials: block.trials.map((t) => frameLevels(t, RATE)),
-    sentence: { levels: sentenceLevels, f0: pitchTrack(block.sentence, RATE, sentenceLevels.length, range) },
+    sentence: { levels: sentenceLevels, f0: pitchTrack(block.sentence, RATE, sentenceLevels.length, range), syllables: 21 },
     calibration,
     storedCalibration: null,
   });
@@ -100,8 +100,13 @@ test('측정 블록 전체: 기기 지표 4개(단위 포함)와 기준값', () 
     ['noise_floor', 'dBFS'],
     ['max_phonation_time', 's'],
     ['sustained_level', 'dBFS'],
+    ['articulation_rate', 'syllables/s'],
     ['f0_median', 'Hz'],
   ]);
+  // 정답: 21음절 ÷ (마지막 모음 끝 − 첫 자음 시작 − 휴지 0.4초)
+  const syl = block.truth.syllables;
+  const truthAr = 21 / (syl[syl.length - 1].end - syl[0].start - 0.4);
+  near(result.baselines.articulationRateSps as number, truthAr, truthAr * 0.05, '조음속도');
   near(result.baselines.noiseFloorDbfs as number, -60, 0.3, '잡음 바닥');
   near(result.baselines.maxPhonationTimeS as number, 7.5, 0.05, '최대발성지속시간');
   near(result.baselines.sustainedLevelDbfs as number, -20, 0.3, '"아" 음량');

@@ -34,6 +34,14 @@ export function voiceBandSections(sampleRate: number): Biquad[] {
   return out;
 }
 
+/** 대역 통과(lowHz~highHz): 4차 버터워스 고역 통과 + 4차 버터워스 저역 통과. 음절 핵 검출의 말소리 대역(300~2500 Hz)에 쓴다 */
+export function bandSections(lowHz: number, highHz: number, sampleRate: number): Biquad[] {
+  const out: Biquad[] = [];
+  for (const q of BUTTERWORTH_Q4) out.push(section('highpass', lowHz, sampleRate, q));
+  if (highHz < sampleRate / 2) for (const q of BUTTERWORTH_Q4) out.push(section('lowpass', highHz, sampleRate, q));
+  return out;
+}
+
 function runSections(x: Float64Array, sections: Biquad[]): void {
   for (const s of sections) {
     let x1 = 0;
@@ -57,6 +65,11 @@ function runSections(x: Float64Array, sections: Biquad[]): void {
  * 양 끝은 50 ms를 홀수 대칭으로 늘려 붙여 시작 부분의 흔들림이 녹음에 들어가지 않게 한다
  */
 export function voiceBand(samples: Float32Array, sampleRate: number): Float32Array {
+  return zeroPhase(samples, voiceBandSections(sampleRate), sampleRate);
+}
+
+/** 주어진 2차 구간들을 앞으로 한 번, 뒤로 한 번 건다(위상 변화 없음). 양 끝은 50 ms 홀수 대칭으로 늘려 붙인다 */
+export function zeroPhase(samples: Float32Array, sections: Biquad[], sampleRate: number): Float32Array {
   const n = samples.length;
   if (n < 3) return samples.slice();
   const pad = Math.min(n - 1, Math.round(0.05 * sampleRate));
@@ -64,7 +77,6 @@ export function voiceBand(samples: Float32Array, sampleRate: number): Float32Arr
   for (let i = 0; i < pad; i++) x[i] = 2 * samples[0] - samples[pad - i];
   for (let i = 0; i < n; i++) x[pad + i] = samples[i];
   for (let i = 0; i < pad; i++) x[pad + n + i] = 2 * samples[n - 1] - samples[n - 2 - i];
-  const sections = voiceBandSections(sampleRate);
   runSections(x, sections);
   x.reverse();
   runSections(x, sections);
@@ -72,16 +84,13 @@ export function voiceBand(samples: Float32Array, sampleRate: number): Float32Arr
   return Float32Array.from(x.subarray(pad, pad + n));
 }
 
-/**
- * 실시간용 말소리 대역 필터(앞으로 한 번). 버퍼가 이어서 들어와도 상태를 이어 간다
- * 측정 블록의 자동 멈춤과 게임의 실시간 음량은 이 필터를 거친 뒤 잰다
- */
-export class VoiceBandFilter {
+/** 실시간용 2차 구간 묶음(앞으로 한 번). 버퍼가 이어서 들어와도 상태를 이어 간다 */
+export class BiquadChain {
   private readonly sections: Biquad[];
   private readonly state: Float64Array;
 
-  constructor(sampleRate: number) {
-    this.sections = voiceBandSections(sampleRate);
+  constructor(sections: Biquad[]) {
+    this.sections = sections;
     this.state = new Float64Array(this.sections.length * 4);
   }
 
@@ -106,6 +115,16 @@ export class VoiceBandFilter {
 
   reset(): void {
     this.state.fill(0);
+  }
+}
+
+/**
+ * 실시간용 말소리 대역 필터(앞으로 한 번). 버퍼가 이어서 들어와도 상태를 이어 간다
+ * 측정 블록의 자동 멈춤과 게임의 실시간 음량은 이 필터를 거친 뒤 잰다
+ */
+export class VoiceBandFilter extends BiquadChain {
+  constructor(sampleRate: number) {
+    super(voiceBandSections(sampleRate));
   }
 }
 
