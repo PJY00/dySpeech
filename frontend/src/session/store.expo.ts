@@ -2,6 +2,7 @@
 
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { RECORDINGS_SUBDIR } from './store';
 import type { Store } from './store';
 
 const ROOT = ['dyspeech', 'state'];
@@ -56,4 +57,18 @@ export class ExpoStore implements Store {
     const file = new File(uri);
     if (file.exists) file.delete();
   }
+
+  async listFiles(dirUri: string): Promise<string[]> {
+    const dir = new Directory(dirUri);
+    if (!dir.exists) return [];
+    return dir
+      .list()
+      .filter((entry): entry is File => entry instanceof File)
+      .map((f) => f.uri);
+  }
+}
+
+/** 녹음 파일 폴더 URI. 안드로이드는 녹음기(Document)와 expo-file-system(Paths.document) 모두 앱의 filesDir */
+export function recordingsDirUri(): string {
+  return new Directory(Paths.document, ...RECORDINGS_SUBDIR.split('/')).uri;
 }

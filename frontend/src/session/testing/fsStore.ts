@@ -2,7 +2,7 @@
 
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import type { Store } from '../store';
 
@@ -48,5 +48,16 @@ export class FsStore implements Store {
 
   async deleteFile(uri: string): Promise<void> {
     await rm(fileURLToPath(uri), { force: true });
+  }
+
+  async listFiles(dirUri: string): Promise<string[]> {
+    const dir = fileURLToPath(dirUri);
+    try {
+      const entries = await readdir(dir, { withFileTypes: true });
+      return entries.filter((e) => e.isFile()).map((e) => pathToFileURL(join(dir, e.name)).href);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw e;
+    }
   }
 }

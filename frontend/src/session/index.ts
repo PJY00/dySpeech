@@ -7,10 +7,11 @@ import appConfig from '../../app.json';
 import { ApiClient } from './api';
 import { createSessionModule } from './core';
 import type { DeviceInfo } from './records';
-import { ExpoStore } from './store.expo';
+import { ExpoStore, recordingsDirUri } from './store.expo';
 
 export { RecordingRejected, SAMPLE_RATE } from './core';
 export type { Session, SessionModule } from './core';
+export type { Store } from './store';
 export { uuidv4, isUuidV4 } from './uuid';
 export * from './types';
 
@@ -36,11 +37,15 @@ function deviceInfo(): DeviceInfo {
 
 const api = new ApiClient({ baseUrl: API_URL, appKey: APP_KEY, fetch: (url, init) => fetch(url, init as RequestInit) });
 
+/** 세션 모듈과 앱 상태 문서가 함께 쓰는 저장소(문서 폴더의 dyspeech/state/) */
+export const stateStore = new ExpoStore();
+
 export const sessionModule = createSessionModule({
-  store: new ExpoStore(),
+  store: stateStore,
   api,
   apiConfigured: Boolean(API_URL && APP_KEY),
   device: deviceInfo,
+  recordingsDir: recordingsDirUri(),
 });
 
 export const startSession = sessionModule.startSession;
