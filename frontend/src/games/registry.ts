@@ -11,7 +11,7 @@ export type { GameArea, GameBaselines, GameEntry, GameName, GameProps, RoundReco
 export const GAMES: readonly GameEntry[] = [
   { game: 'balloon', area: 'breath', title: '풍선 불기', description: '소리를 내서 풍선을 키워요', maxLevel: BREATH_MAX_LEVEL, component: BalloonGameScreen },
   { game: 'candle', area: 'breath', title: '촛불 지키기', description: '소리를 이어서 내서 촛불을 지켜요', maxLevel: BREATH_MAX_LEVEL, component: CandleGameScreen },
-  { game: 'guide_reading', area: 'rate', title: '노래방 따라 읽기', description: '파란 안내를 따라 같은 빠르기로 읽어요', maxLevel: GUIDE_READING_MAX_LEVEL, component: GuideReadingGame },
+  { game: 'guide_reading', area: 'rate', title: '속도 맞춰 읽기', description: '파란 안내를 따라 같은 빠르기로 읽어요', maxLevel: GUIDE_READING_MAX_LEVEL, component: GuideReadingGame },
 ];
 
 export function gamesInArea(area: GameArea): GameEntry[] {

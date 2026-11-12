@@ -85,7 +85,11 @@ export default function SessionResultScreen() {
         <View style={styles.greetingText}>
           <Text style={styles.hello}>{headline}</Text>
           <Text style={styles.sub}>
-            {progress?.purpose === 'retest' ? '반복 측정 회차예요.' : `오늘 완료한 영역 ${completed.length} / ${domains.length}`}
+            {progress?.purpose === 'retest'
+              ? '반복 측정 회차예요.'
+              : progress?.purpose === 'agc_test'
+                ? '폰 점검 회차예요. 결과는 서버 담당이 확인해요.'
+                : `오늘 완료한 영역 ${completed.length} / ${domains.length}`}
           </Text>
         </View>
         {checking ? <ActivityIndicator color={colors.primary} /> : null}

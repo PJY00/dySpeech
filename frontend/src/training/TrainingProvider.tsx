@@ -1,9 +1,10 @@
 // 시안 화면(src/app)이 함께 쓰는 훈련 상태. AppShell.tsx가 화면 하나에서 들고 있던 것을 여러 화면이 나눠 쓰게 옮겼다.
 // - 회차(세션)와 측정 블록 기준값, 게임별 라운드 번호와 단계, 마지막 라운드 결과
 // - 오늘 훈련 현황(N/3, progress.ts 규칙), 최근 회차 카드, 끝나지 않은 회차
-// 회차는 하루 하나: 오늘 시작한 회차가 열려 있으면 이어서 하고, 없으면 새 회차를 열고 측정 블록부터 한다.
+// 회차는 하루 하나(openSession.ts): 오늘 측정을 마친 회차는 앱을 다시 열어도 이어서 하고, [오늘 훈련 끝] 뒤 그날은 새 회차를 열지 않는다.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert } from 'react-native';
 import { router, type Href } from 'expo-router';
 
 import type { GameEntry } from '../games/registry';
@@ -23,6 +24,7 @@ import type { GameArea, GameBaselines, RoundRecording } from './gameTypes';
 import { recentCards } from './labels';
 import type { SessionCard } from './labels';
 import { LevelBook } from './levels';
+import { OpenSessionBook, planUnfinished, reportedToday } from './openSession';
 import { completedAreas, dayKey, TodayBook } from './progress';
 import type { RoundSummary } from './progress';
 
@@ -49,6 +51,8 @@ interface Training {
   completed: GameArea[];
   cards: SessionCard[];
   unfinished: Session[];
+  /** 오늘 훈련 회차를 이미 끝냈는지([오늘 훈련 끝] 뒤 그날은 새 회차를 열지 않음) */
+  trainedToday: boolean;
   /** 훈련으로 들어간다. 측정 블록을 마친 오늘 회차가 있으면 바로, 없으면 새 회차를 열고 측정 블록부터 */
   startTraining: (destination: string) => Promise<void>;
   /** 반복 측정(retest): 측정 블록만 하고 바로 보낸다 */
@@ -77,17 +81,27 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   const [todayRounds, setTodayRounds] = useState<RoundSummary[]>([]);
   const [cards, setCards] = useState<SessionCard[]>([]);
   const [unfinished, setUnfinished] = useState<Session[]>([]);
+  const [trainedToday, setTrainedToday] = useState(false);
   const sessionRef = useRef<Session | null>(null);
+  const roundsRef = useRef<Record<string, number>>({});
   const levels = useMemo(() => new LevelBook(stateStore), []);
   const today = useMemo(() => new TodayBook(stateStore), []);
+  const openBook = useMemo(() => new OpenSessionBook(stateStore), []);
 
   const setCurrent = useCallback((s: Session | null) => {
     sessionRef.current = s;
     setSession(s);
   }, []);
 
+  const setRoundCounts = useCallback((next: Record<string, number>) => {
+    roundsRef.current = next;
+    setRounds(next);
+  }, []);
+
   const refreshCards = useCallback(async () => {
-    setCards(recentCards(await listSessions(), RECENT_CARDS));
+    const list = await listSessions();
+    setCards(recentCards(list, RECENT_CARDS));
+    setTrainedToday(reportedToday(list));
   }, []);
 
   // 앱 시작: 사용자, 못 보낸 회차 이어 보내기, 끝나지 않은 회차, 오늘 기록, 최근 회차
@@ -98,7 +112,22 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
         setUserKey(user.userId);
         const r = await resumePending();
         log('resume', { resumed: r.resumed, unfinished: r.unfinished.length, swept_files: r.sweptFiles });
-        setUnfinished(r.unfinished);
+        // 오늘 측정을 마친 회차는 이어서, 지난 날 회차는 마지막 라운드 시각으로 끝내고, 나머지만 묻는다
+        const doc = await openBook.read();
+        const plan = planUnfinished(r.unfinished, doc);
+        for (const { session: old, endedAt } of plan.close) {
+          await old.complete({ endedAt });
+          log('session_auto_completed', { session_id: old.id, ended_at: endedAt });
+        }
+        const reopen = plan.reopen;
+        const measured = reopen?.baselines();
+        if (reopen && measured) {
+          setCurrent(reopen);
+          setBaselines(gameBaselines(measured));
+          setRoundCounts(doc?.sessionId === reopen.id ? doc.rounds : {});
+          log('session_reopened', { session_id: reopen.id });
+        }
+        setUnfinished(plan.ask);
         setTodayRounds(await today.rounds());
         await refreshCards();
         // resumePending은 보내기를 뒤에서 시작한다. 시작된 뒤 카드를 다시 그린다
@@ -110,7 +139,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       }
     })();
     return startAutoSync(() => void refreshCards());
-  }, [refreshCards, today]);
+  }, [refreshCards, today, openBook, setCurrent, setRoundCounts]);
 
   const openNewSession = useCallback(
     async (purpose: 'training' | 'retest') => {
@@ -118,11 +147,11 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       log('session_started', { session_id: s.id, purpose });
       setCurrent(s);
       setBaselines(null);
-      setRounds({});
+      setRoundCounts({});
       setLastRound(null);
       return s;
     },
-    [setCurrent],
+    [setCurrent, setRoundCounts],
   );
 
   const startTraining = useCallback(
@@ -134,12 +163,26 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
         router.push(destination as Href);
         return;
       }
-      // 측정 블록을 끝내지 못한 회차나 지난 날 회차는 버리고 새로 연다
-      if (open && !open.baselines()) await open.discard().catch(() => undefined);
+      if (open && open.purpose === 'training' && open.baselines()) {
+        // 앱을 켠 채로 날짜가 바뀐 회차: 마지막 라운드 시각으로 끝낸다
+        const doc = await openBook.read();
+        await open.complete({ endedAt: doc?.sessionId === open.id ? doc.lastActivityAt : open.baselines()?.measuredAt });
+        setCurrent(null);
+        await openBook.write(null);
+      } else if (open && !open.baselines()) {
+        // 측정 블록을 끝내지 못한 회차는 버린다
+        await open.discard().catch(() => undefined);
+        setCurrent(null);
+      }
+      if (reportedToday(await listSessions())) {
+        setTrainedToday(true);
+        Alert.alert('오늘 훈련을 마쳤어요', '측정은 하루에 한 번만 해요. 내일 다시 만나요!');
+        return;
+      }
       await openNewSession('training');
       router.push({ pathname: '/session/measure', params: { next: destination } });
     },
-    [openNewSession],
+    [openNewSession, openBook, setCurrent],
   );
 
   const startRetest = useCallback(async () => {
@@ -149,14 +192,22 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     router.push({ pathname: '/session/measure', params: { next: '/session/finishing' } });
   }, [openNewSession]);
 
-  const onMeasured = useCallback((b: Baselines) => setBaselines(gameBaselines(b)), []);
+  const onMeasured = useCallback(
+    (b: Baselines) => {
+      setBaselines(gameBaselines(b));
+      const s = sessionRef.current;
+      if (s?.purpose === 'training') void openBook.write({ sessionId: s.id, rounds: {}, lastActivityAt: b.measuredAt });
+    },
+    [openBook],
+  );
 
   const cancelMeasure = useCallback(async () => {
     const s = sessionRef.current;
     setCurrent(null);
     setBaselines(null);
     await s?.discard().catch(() => undefined);
-  }, [setCurrent]);
+    await openBook.write(null);
+  }, [setCurrent, openBook]);
 
   const levelFor = useCallback((game: string) => levels.get(userKey, game), [levels, userKey]);
 
@@ -178,7 +229,12 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       } else if (recording) {
         await discardRecordingFile(recording.fileUri).catch(() => undefined);
       }
-      setRounds((r) => ({ ...r, [entry.game]: (r[entry.game] ?? 0) + 1 }));
+      const counts = { ...roundsRef.current, [entry.game]: (roundsRef.current[entry.game] ?? 0) + 1 };
+      setRoundCounts(counts);
+      const open = sessionRef.current;
+      if (open?.purpose === 'training') {
+        await openBook.write({ sessionId: open.id, rounds: counts, lastActivityAt: new Date().toISOString() });
+      }
       setTodayRounds(
         await today.add({ game: entry.game, area: entry.area, success_rate_pct: run.success_rate_pct, decision: run.decision }),
       );
@@ -187,7 +243,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       setLastRound(last);
       return last;
     },
-    [levels, today, userKey],
+    [levels, today, userKey, openBook, setRoundCounts],
   );
 
   const finish = useCallback(async () => {
@@ -197,10 +253,11 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     log('session_completed', { session_id: s.id });
     setCurrent(null);
     setBaselines(null);
-    setRounds({});
+    setRoundCounts({});
+    if (s.purpose === 'training') await openBook.write(null);
     void refreshCards();
     return s;
-  }, [refreshCards, setCurrent]);
+  }, [refreshCards, setCurrent, setRoundCounts, openBook]);
 
   const resolveUnfinished = useCallback(
     async (s: Session, action: 'send' | 'discard') => {
@@ -225,6 +282,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       completed: completedAreas(todayRounds),
       cards,
       unfinished,
+      trainedToday,
       startTraining,
       startRetest,
       onMeasured,
@@ -237,7 +295,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       resolveUnfinished,
       resetToday,
     }),
-    [ready, userKey, session, baselines, lastRound, rounds, todayRounds, cards, unfinished, startTraining, startRetest, onMeasured, cancelMeasure, levelFor, nextRoundIndex, recordRound, finish, refreshCards, resolveUnfinished, resetToday],
+    [ready, userKey, session, baselines, lastRound, rounds, todayRounds, cards, unfinished, trainedToday, startTraining, startRetest, onMeasured, cancelMeasure, levelFor, nextRoundIndex, recordRound, finish, refreshCards, resolveUnfinished, resetToday],
   );
 
   return <TrainingContext.Provider value={value}>{children}</TrainingContext.Provider>;

@@ -21,7 +21,7 @@ let devShortcutOpened = false;
 let resumeAsked = false;
 
 export default function HomeScreen() {
-  const { ready, completed, unfinished, startTraining } = useTraining();
+  const { ready, completed, unfinished, trainedToday, startTraining } = useTraining();
   const { history } = useHistory();
 
   useEffect(() => {
@@ -82,7 +82,11 @@ export default function HomeScreen() {
         </View>
       </Card>
 
-      <PrimaryButton label="훈련 시작하기" onPress={() => void startTraining('/games')} />
+      <PrimaryButton
+        label={trainedToday ? '오늘 훈련을 마쳤어요' : '훈련 시작하기'}
+        chevron={!trainedToday}
+        onPress={() => void startTraining('/games')}
+      />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>게임 선택하기</Text>

@@ -30,6 +30,8 @@ export interface MeasurementBlockProps {
   onCancel?: () => void;
   /** "아" 횟수(2~3, 기본 3) */
   trials?: number;
+  /** 측정이 끝난 화면의 버튼 이름(기본 '다음'). 다음에 갈 화면에 맞춰 부르는 쪽이 정한다 */
+  doneLabel?: string;
 }
 
 type Phase = 'prepare' | 'steps' | 'computing' | 'summary' | 'error';
@@ -44,7 +46,7 @@ function recordingInput(step: StepId, fileUri: string): RecordingInput {
   return { kind: 'mpt_trial', trialNo: trialNo(step) ?? 1, fileUri };
 }
 
-export function MeasurementBlock({ session, onDone, onCancel, trials }: MeasurementBlockProps) {
+export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel = '다음' }: MeasurementBlockProps) {
   const steps = useMemo(() => blockSteps(session.needsCalibration, trials), [session, trials]);
   const [phase, setPhase] = useState<Phase>('prepare');
   const [permission, setPermission] = useState<'checking' | 'granted' | 'denied'>('checking');
@@ -298,7 +300,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials }: Measurem
     const b = summary.baselines;
     const show = (v: number | null, unit: string, digits = 1) => (v === null ? '구하지 못함' : `${v.toFixed(digits)} ${unit}`);
     return (
-      <Screen header={header} footer={<PrimaryButton label="게임으로" onPress={() => onDone(b)} />}>
+      <Screen header={header} footer={<PrimaryButton label={doneLabel} onPress={() => onDone(b)} />}>
         <View style={s.hero}>
           <View style={s.heroIcon}>
             <Ionicons name="checkmark" size={40} color={colors.primary} />

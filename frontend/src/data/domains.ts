@@ -11,6 +11,8 @@ export type Domain = {
   id: DomainId;
   number: number;
   title: string;
+  /** 기록 탭 필터처럼 좁은 곳에 쓰는 짧은 이름 */
+  shortTitle: string;
   games: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   color: string;
@@ -24,6 +26,7 @@ export const domains: Domain[] = [
     id: 'breath',
     number: 1,
     title: '호흡 조절',
+    shortTitle: '호흡',
     games: '풍선 불기 · 촛불 지키기',
     icon: 'balloon',
     color: '#2FAF97',
@@ -33,7 +36,8 @@ export const domains: Domain[] = [
   {
     id: 'rate',
     number: 2,
-    title: '발화 속도',
+    title: '말 속도',
+    shortTitle: '말 속도',
     games: '속도 맞춰 읽기',
     icon: 'book-open-variant',
     color: '#4A7CF0',
@@ -44,6 +48,7 @@ export const domains: Domain[] = [
     id: 'intonation',
     number: 3,
     title: '목소리 · 억양',
+    shortTitle: '억양',
     games: '우주선 게임 · 롤러코스터 게임',
     icon: 'rocket-launch',
     color: '#8E5CF0',

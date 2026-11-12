@@ -372,3 +372,12 @@ test('앱 시작 정리: 어느 세션에도 없는 WAV(녹음 도중 꺼져 남
   const c = rig({ store, recordingsDir: 'file:///rec' });
   assert.equal((await c.module.resumePending()).sweptFiles, 0);
 });
+
+test('complete에 끝난 시각을 주면 그 시각을 ended_at으로 보낸다(지난 날 회차를 다음 날 끝낼 때)', async () => {
+  const r = rig();
+  const s = await measurementSession(r);
+  const endedAt = '2026-11-10T21:30:00.000Z';
+  await s.complete({ endedAt });
+  await s.waitForResult();
+  assert.equal(r.server.sessions.get(s.id)?.complete?.ended_at, endedAt);
+});

@@ -21,7 +21,7 @@ type Filter = 'all' | DomainId;
 
 const filterOptions: { value: Filter; label: string }[] = [
   { value: 'all', label: '전체' },
-  ...domains.map((d) => ({ value: d.id as Filter, label: d.title.split(' ')[0] })),
+  ...domains.map((d) => ({ value: d.id as Filter, label: d.shortTitle })),
 ];
 
 const LINE_COLORS = ['#2FAF97', '#4A7CF0', '#8E5CF0'];
@@ -51,7 +51,7 @@ export default function RecordsScreen() {
           back={false}
           right={
             <Pressable onPress={() => router.push('/clinician')} hitSlop={8}>
-              <Text style={styles.demoLink}>임상 기록(데모)</Text>
+              <Text style={styles.demoLink}>임상 기록</Text>
             </Pressable>
           }
         />

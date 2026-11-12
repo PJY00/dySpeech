@@ -8,6 +8,8 @@ import { useTraining } from '@/training/TrainingProvider';
 
 export default function MeasureScreen() {
   const { next } = useLocalSearchParams<{ next?: string }>();
+  // 반복 측정은 측정 뒤 바로 결과 보내기, 훈련은 게임으로 간다
+  const doneLabel = next === '/session/finishing' ? '결과 보내기' : '게임으로';
   const { session, onMeasured, cancelMeasure } = useTraining();
 
   if (!session) {
@@ -17,6 +19,7 @@ export default function MeasureScreen() {
   return (
     <MeasurementBlock
       session={session}
+      doneLabel={doneLabel}
       onDone={(baselines) => {
         onMeasured(baselines);
         router.replace((next ?? '/games') as Href);

@@ -20,6 +20,7 @@ export default function SettingsScreen() {
     <Screen header={<ScreenHeader title="설정" back={false} />}>
       <Card>
         <Text style={styles.sectionTitle}>개발 · 데모</Text>
+        <Row label="폰 점검 (자동 게인 조절 시험)" onPress={() => router.push('/phone-check')} />
         <Row label="반복 측정 시작 (MDC 수집용)" onPress={() => void startRetest()} />
         <Row label="실제 훈련 흐름 (app-shell)" onPress={() => router.push('/dev/shell')} />
         <Row label="첫 실행 화면 보기" onPress={() => router.push('/onboarding/profile')} />
