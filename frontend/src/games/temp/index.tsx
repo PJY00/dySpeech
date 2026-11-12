@@ -64,7 +64,7 @@ function makeTempGame(game: GameName, title: string) {
 }
 
 const TEMP_CANDIDATES: { game: GameName; area: GameArea; title: string; description: string }[] = [
-  { game: 'balloon', area: 'breath', title: '풍선 지키기', description: '목표 음량을 유지해 풍선을 지켜요' },
+  { game: 'balloon', area: 'breath', title: '풍선 불기', description: '목표 음량을 유지해 풍선을 키워요' },
   { game: 'candle', area: 'breath', title: '촛불 지키기', description: '고른 목소리로 촛불을 지켜요' },
   { game: 'spaceship', area: 'intonation', title: '우주선 게임', description: '목소리 높낮이로 우주선을 움직여요' },
   { game: 'roller_coaster', area: 'intonation', title: '롤러코스터 게임', description: '억양 곡선을 따라 달려요' },
