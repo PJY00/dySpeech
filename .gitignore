@@ -15,5 +15,7 @@ __pycache__/
 
 # Audio data (recordings must never be committed)
 data/
+# 앱 코드 폴더(화면 표시용 상수)는 녹음이 아니므로 예외
+!frontend/src/data/
 *.wav
 *.flac
