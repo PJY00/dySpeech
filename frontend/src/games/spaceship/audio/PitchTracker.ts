@@ -12,6 +12,7 @@ export interface PitchFrame {
 export interface PitchTrackerOptions {
   minHz?: number;
   maxHz?: number;
+  hopSec?: number;
 }
 
 export const WINDOW_SEC = 2048 / 48000;
@@ -19,6 +20,8 @@ export const HOP_SEC = 0.01;
 export const LEVEL_SEC = 0.03;
 export const CLARITY_THRESHOLD = 0.85;
 export const MEDIAN_FRAMES = 5;
+export const REALTIME_PITCH_RATE = 8000;
+export const REALTIME_HOP_SEC = 0.02;
 export const DEFAULT_MIN_HZ = 75;
 export const DEFAULT_MAX_HZ = 500;
 
@@ -31,14 +34,29 @@ export function levelDbfs(buf: ArrayLike<number>, from = 0, to = buf.length): nu
   return 20 * Math.log10((n ? Math.sqrt(s / n) : 0) + EPS);
 }
 
+export function decimate(samples: ArrayLike<number>, factor: number): Float32Array {
+  if (factor <= 1) return Float32Array.from(samples);
+  const n = Math.floor(samples.length / factor);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (let k = 0; k < factor; k++) sum += samples[i * factor + k];
+    out[i] = sum / factor;
+  }
+  return out;
+}
+
 export class PitchTracker {
   readonly sampleRate: number;
   readonly windowSize: number;
   readonly hopSize: number;
   readonly minHz: number;
   readonly maxHz: number;
+  readonly hopSec: number;
+  private readonly medianFrames: number;
   private detector: PitchDetector<Float32Array>;
   private buf: Float32Array;
+  private levelBuf: Float32Array;
   private filled = 0;
   private consumed = 0;
   private recent: { hz: number; time: number }[] = [];
@@ -46,42 +64,52 @@ export class PitchTracker {
   constructor(sampleRate: number, options: PitchTrackerOptions = {}) {
     this.sampleRate = sampleRate;
     this.windowSize = Math.round(WINDOW_SEC * sampleRate);
-    this.hopSize = Math.max(1, Math.round(HOP_SEC * sampleRate));
+    this.hopSec = options.hopSec ?? HOP_SEC;
+    this.hopSize = Math.max(1, Math.round(this.hopSec * sampleRate));
+    this.medianFrames = Math.max(3, Math.round((MEDIAN_FRAMES * HOP_SEC) / this.hopSec) | 1);
     this.minHz = options.minHz ?? DEFAULT_MIN_HZ;
     this.maxHz = options.maxHz ?? DEFAULT_MAX_HZ;
     this.detector = PitchDetector.forFloat32Array(this.windowSize);
     this.detector.clarityThreshold = 0.8;
     this.buf = new Float32Array(this.windowSize * 4);
+    this.levelBuf = new Float32Array(this.windowSize * 4);
   }
 
-  push(chunk: ArrayLike<number>): PitchFrame[] {
+  push(chunk: ArrayLike<number>, levelChunk: ArrayLike<number> = chunk): PitchFrame[] {
     if (this.filled + chunk.length > this.buf.length) {
-      const bigger = new Float32Array((this.filled + chunk.length) * 2);
+      const size = (this.filled + chunk.length) * 2;
+      const bigger = new Float32Array(size);
       bigger.set(this.buf.subarray(0, this.filled));
       this.buf = bigger;
+      const biggerLevel = new Float32Array(size);
+      biggerLevel.set(this.levelBuf.subarray(0, this.filled));
+      this.levelBuf = biggerLevel;
     }
     this.buf.set(chunk, this.filled);
+    this.levelBuf.set(levelChunk, this.filled);
     this.filled += chunk.length;
 
     const out: PitchFrame[] = [];
     let offset = 0;
     while (this.filled - offset >= this.windowSize) {
-      out.push(this.analyze(this.buf.subarray(offset, offset + this.windowSize), this.consumed + offset));
+      out.push(this.analyze(offset, this.consumed + offset));
       offset += this.hopSize;
     }
     if (offset > 0) {
       this.buf.copyWithin(0, offset, this.filled);
+      this.levelBuf.copyWithin(0, offset, this.filled);
       this.filled -= offset;
       this.consumed += offset;
     }
     return out;
   }
 
-  private analyze(win: Float32Array, startSample: number): PitchFrame {
+  private analyze(offset: number, startSample: number): PitchFrame {
+    const win = this.buf.subarray(offset, offset + this.windowSize);
     const time = (startSample + this.windowSize / 2) / this.sampleRate;
     const half = Math.round((LEVEL_SEC * this.sampleRate) / 2);
-    const mid = Math.floor(win.length / 2);
-    const level = levelDbfs(win, Math.max(0, mid - half), Math.min(win.length, mid + half));
+    const mid = offset + Math.floor(this.windowSize / 2);
+    const level = levelDbfs(this.levelBuf, Math.max(offset, mid - half), Math.min(offset + this.windowSize, mid + half));
 
     let rawHz: number | null = null;
     let clarity = 0;
@@ -105,7 +133,7 @@ export class PitchTracker {
       if (hz < this.minHz || hz > this.maxHz) hz = rawHz;
     }
     this.recent.push({ hz, time });
-    if (this.recent.length > MEDIAN_FRAMES) this.recent.shift();
+    if (this.recent.length > this.medianFrames) this.recent.shift();
     return median(this.recent.map((r) => r.hz));
   }
 }
