@@ -3,7 +3,7 @@ export type PatternId = 'level' | 'rise' | 'fall' | 'riseFall' | 'fallRise' | 's
 type Key = readonly [u: number, v: number];
 
 export const PATTERNS: Record<PatternId, { label: string; hint: string; keys: readonly Key[] }> = {
-  level: { label: '평평하게', hint: '같은 높이로 길게 "아—"', keys: [[0, 0], [1, 0]] },
+  level: { label: '평평하게', hint: '편한 높이로 길게 "아—"', keys: [[0, 0], [1, 0]] },
   rise: { label: '올리기 ↗', hint: '물어볼 때처럼 끝을 올려요', keys: [[0, -0.3], [0.35, -0.3], [1, 0.7]] },
   fall: { label: '내리기 ↘', hint: '말을 마칠 때처럼 끝을 내려요', keys: [[0, 0.5], [0.35, 0.5], [1, -0.5]] },
   riseFall: { label: '올렸다 내리기', hint: '가운데를 높게', keys: [[0, -0.3], [0.5, 0.7], [1, -0.3]] },
@@ -36,11 +36,11 @@ export interface LevelConfig {
 }
 
 export const LEVELS: readonly LevelConfig[] = [
-  { level: 1, ampSt: 4, tolSt: 2.0, pxPerSec: 100, phraseSec: 3.0, restSec: 2.2, patterns: ['rise', 'fall'] },
-  { level: 2, ampSt: 5, tolSt: 1.8, pxPerSec: 110, phraseSec: 3.0, restSec: 2.0, patterns: ['rise', 'fall', 'stepUp'] },
-  { level: 3, ampSt: 6, tolSt: 1.8, pxPerSec: 120, phraseSec: 2.8, restSec: 1.8, patterns: ['rise', 'fall', 'riseFall', 'stepUp'] },
-  { level: 4, ampSt: 7, tolSt: 1.8, pxPerSec: 125, phraseSec: 2.8, restSec: 1.6, patterns: ['rise', 'fall', 'riseFall', 'fallRise', 'stepUp'] },
-  { level: 5, ampSt: 8, tolSt: 1.8, pxPerSec: 130, phraseSec: 2.8, restSec: 1.5, patterns: ['rise', 'fall', 'riseFall', 'fallRise', 'stepUp'] },
+  { level: 1, ampSt: 3, tolSt: 3.0, pxPerSec: 80, phraseSec: 4.0, restSec: 2.5, patterns: ['rise', 'fall'] },
+  { level: 2, ampSt: 4, tolSt: 2.6, pxPerSec: 90, phraseSec: 3.6, restSec: 2.3, patterns: ['rise', 'fall', 'stepUp'] },
+  { level: 3, ampSt: 5, tolSt: 2.3, pxPerSec: 100, phraseSec: 3.2, restSec: 2.0, patterns: ['rise', 'fall', 'riseFall', 'stepUp'] },
+  { level: 4, ampSt: 6, tolSt: 2.0, pxPerSec: 110, phraseSec: 3.0, restSec: 1.8, patterns: ['rise', 'fall', 'riseFall', 'fallRise', 'stepUp'] },
+  { level: 5, ampSt: 7, tolSt: 1.8, pxPerSec: 120, phraseSec: 2.8, restSec: 1.6, patterns: ['rise', 'fall', 'riseFall', 'fallRise', 'stepUp'] },
 ];
 
 export const MAX_LEVEL = LEVELS.length;
@@ -54,6 +54,7 @@ export interface Phrase {
   pattern: PatternId;
   start: number;
   end: number;
+  warmup: boolean;
 }
 
 export interface Round {
@@ -68,7 +69,10 @@ export interface Round {
   seed: number;
 }
 
+export const PHRASE_COUNT = 6;
 export const COLUMN_STEP_SEC = 0.2;
+export const ONSET_GRACE_SEC = 0.5;
+export const REACTION_ALLOWANCE_SEC = 0.2;
 const STAR_STEP_SEC = 0.6;
 
 function mulberry32(seed: number): () => number {
@@ -82,7 +86,7 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-export function buildRound(level: number, phraseCount = 8, seed = Date.now() % 2147483647): Round {
+export function buildRound(level: number, phraseCount = PHRASE_COUNT, seed = Date.now() % 2147483647): Round {
   const config = getLevel(level);
   const rand = mulberry32(seed);
   const leadIn = 3;
@@ -95,7 +99,7 @@ export function buildRound(level: number, phraseCount = 8, seed = Date.now() % 2
       const pool = config.patterns.filter((p) => p !== prev);
       pattern = pool[Math.floor(rand() * pool.length)] ?? config.patterns[0];
     }
-    phrases.push({ index: i, pattern, start: t, end: t + config.phraseSec });
+    phrases.push({ index: i, pattern, start: t, end: t + config.phraseSec, warmup: i === 0 });
     prev = pattern;
     t += config.phraseSec + config.restSec;
   }
@@ -129,21 +133,24 @@ export function nextPhrase(round: Round, t: number): Phrase | null {
   return null;
 }
 
-export function targetStAt(round: Round, t: number): number | null {
+export function inGrace(round: Round, t: number): boolean {
+  const p = phraseAt(round, t);
+  return p !== null && t - p.start < ONSET_GRACE_SEC;
+}
+
+export function shapeAt(round: Round, t: number): number | null {
   const p = phraseAt(round, t);
   if (!p) return null;
   return patternValue(p.pattern, (t - p.start) / (p.end - p.start)) * round.config.ampSt;
 }
 
-export const REACTION_ALLOWANCE_SEC = 0.2;
-
-export function deviationAt(round: Round, t: number, st: number): number | null {
-  if (targetStAt(round, t) === null) return null;
+export function deviationFrom(target: (t: number) => number | null, t: number, st: number): number | null {
+  if (target(t) === null) return null;
   let best: number | null = null;
   for (let k = 0; k <= 4; k++) {
-    const target = targetStAt(round, t - (REACTION_ALLOWANCE_SEC * k) / 4);
-    if (target === null) continue;
-    const d = st - target;
+    const v = target(t - (REACTION_ALLOWANCE_SEC * k) / 4);
+    if (v === null) continue;
+    const d = st - v;
     if (best === null || Math.abs(d) < Math.abs(best)) best = d;
   }
   return best;

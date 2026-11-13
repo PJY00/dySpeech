@@ -1,8 +1,8 @@
-import { mean, std } from './audio/pitchMath';
+import { uuidv4 } from '../../session/uuid';
+import { mean, percentile, std } from './audio/pitchMath';
 import type { SpaceshipBaseline } from './baseline';
-import { deviationAt, MAX_LEVEL, type Round } from './contours';
-import type { GameState } from './engine';
-import { uuidv4 } from './uuid';
+import { deviationFrom, MAX_LEVEL, ONSET_GRACE_SEC, type Round } from './contours';
+import { targetAt, type GameState } from './engine';
 
 export interface SpaceshipGameRun {
   game_run_id: string;
@@ -26,6 +26,8 @@ export interface SpaceshipParams {
   phrase_s: number;
   rest_s: number;
   reaction_allowance_s: number;
+  onset_grace_s: number;
+  reference_offset_semitones: number;
   f0_median_hz: number;
   noise_floor_dbfs: number;
   f0_range_hz: [number, number];
@@ -41,6 +43,7 @@ export interface SpaceshipResultDetail {
   curve_rmse_semitones: number | null;
   pass_rmse_semitones: number;
   f0_sd_semitones: number | null;
+  pitch_range_semitones: number | null;
   target_sd_semitones: number;
   mean_bias_semitones: number | null;
   estimation_failure_pct: number | null;
@@ -53,7 +56,7 @@ export interface SpaceshipResultDetail {
 }
 
 const MIN_COVERAGE = 0.5;
-const PASS_RMSE_RATIO = 0.7;
+const PASS_RMSE_RATIO = 0.85;
 const PASS_RMSE_FLOOR_ST = 0.5;
 const UP_LANE_RATIO = 0.7;
 const DOWN_LANE_RATIO = 0.35;
@@ -81,15 +84,18 @@ export function computeGameRun(
   ctx: RunContext,
 ): SpaceshipGameRun {
   const tol = round.config.tolSt;
-  const phrase = s.frames.filter((f) => f.inPhrase && f.targetSt !== null);
+  const phrase = s.frames.filter((f) => f.scored && f.targetSt !== null);
   const voiced = phrase.filter((f) => f.voiced);
   const valid = phrase.filter((f) => f.valid && f.st !== null);
+  const target = (time: number) => targetAt(s, round, time);
 
   const devs = valid
-    .map((f) => deviationAt(round, f.t, f.st as number))
+    .map((f) => deviationFrom(target, f.t, f.st as number))
     .filter((d): d is number => d !== null);
   const curveRmse = devs.length ? Math.sqrt(mean(devs.map((d) => d * d))) : null;
-  const f0Sd = valid.length >= 2 ? std(valid.map((f) => f.st as number)) : null;
+  const sts = valid.map((f) => f.st as number);
+  const f0Sd = sts.length >= 2 ? std(sts) : null;
+  const pitchRange = sts.length >= 2 ? percentile(sts, 95) - percentile(sts, 5) : null;
   const targetSdRaw = std(phrase.map((f) => f.targetSt as number));
   const targetSd = Number.isFinite(targetSdRaw) ? targetSdRaw : 0;
   const failure = voiced.length ? 1 - valid.length / voiced.length : null;
@@ -133,6 +139,8 @@ export function computeGameRun(
       phrase_s: round.config.phraseSec,
       rest_s: round.config.restSec,
       reaction_allowance_s: ctx.reactionAllowanceSec,
+      onset_grace_s: ONSET_GRACE_SEC,
+      reference_offset_semitones: round3(s.offsetSt),
       f0_median_hz: round1(baseline.f0MedianHz),
       noise_floor_dbfs: round1(baseline.noiseFloorDbfs),
       f0_range_hz: ctx.f0RangeHz,
@@ -150,6 +158,7 @@ export function computeGameRun(
       curve_rmse_semitones: opt(curveRmse, round3),
       pass_rmse_semitones: round3(passRmse),
       f0_sd_semitones: opt(f0Sd, round3),
+      pitch_range_semitones: opt(pitchRange, round3),
       target_sd_semitones: round3(targetSd),
       mean_bias_semitones: opt(devs.length ? mean(devs) : null, round3),
       estimation_failure_pct: opt(failure, (x) => round1(x * 100)),
