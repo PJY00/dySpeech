@@ -77,6 +77,7 @@ macOS: `python3.13 -m venv .venv && source .venv/bin/activate` 후 같은 `pip i
 - 테스트: `pytest -q`
 - 실행: `uvicorn app.main:app --reload`
 - 폰에서 접속할 때는 `uvicorn app.main:app --reload --host 0.0.0.0`으로 띄우고 PC의 내부 IP를 씁니다.
+- 서버는 `.env`에 운영 변수 6개(`.env.example` 참고)가 모두 있어야 뜹니다. 운영 변수가 없는 PC에서는 서버를 띄우지 않고 배포 서버 주소를 씁니다. 테스트(`pytest -q`)는 운영 변수 없이도 돕니다.
 - PC 내부 IP는 ipconfig로 cmd에서 확인하실 수 있습니다. 추후 env.example에 있는 로컬 호스트 주소 변경 시 사용하시면 됩니다.
 - 패키지를 추가할 때는 `requirements.txt`에 버전을 함께 기입해주세요.
 
@@ -85,3 +86,55 @@ macOS: `python3.13 -m venv .venv && source .venv/bin/activate` 후 같은 `pip i
 - 프론트엔드 폴더 내의 gitignore 파일과 env 파일(추후 추가한다면)을 외부로 통합시켜야 하나 고민입니다.
   - env는 외부에서 사용하지 않을 것 같아 괜찮은데 ignore는 외부, 내부 둘 다 존재하니 개발 과정에서 헷갈리실 것 같아 그렇습니다.
 - 다시 말씀드리지만, 저는 window & android를 사용해 오류나, 명령어가 다를 수 있으니 확인 부탁드립니다.
+
+### macOS 절차 (백엔드)
+
+Apple 칩 Mac과 Homebrew 기준입니다. Homebrew가 없으면 https://brew.sh 안내대로 먼저 설치합니다.
+
+1. Python 3.13과 PostgreSQL 설치
+
+   ```bash
+   brew install python@3.13 postgresql@17
+   brew services start postgresql@17
+   echo 'export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"' >> ~/.zprofile
+   source ~/.zprofile
+   ```
+
+   - `postgresql@17`은 Homebrew가 PATH에 자동으로 넣지 않아서 세 번째 줄이 필요합니다.
+   - 운영 DB(Supabase)와 같은 PostgreSQL 17을 씁니다. 16을 쓰고 있었다면 `brew services stop postgresql@16`, `brew unlink postgresql@16` 후 17을 설치합니다.
+
+2. 테스트 DB 만들기
+
+   ```bash
+   createdb dyspeech_test
+   ```
+
+3. 가상 환경과 패키지
+
+   ```bash
+   cd backend
+   python3.13 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-dev.txt
+   ```
+
+   - 다른 사람이 패키지를 추가한 뒤에는 `pip install -r requirements-dev.txt`를 다시 실행합니다.
+
+4. 환경 변수
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   - `.env`의 `TEST_DATABASE_URL`에 `postgresql://<사용자 이름>@localhost:5432/dyspeech_test`를 넣습니다. 사용자 이름은 `whoami`로 확인합니다.
+   - 비워 두면 DB 테스트는 건너뜁니다. `.env`는 커밋하지 않습니다.
+
+5. 테스트와 실행
+
+   ```bash
+   pytest -q
+   uvicorn app.main:app --reload
+   ```
+
+   - 다른 터미널에서 `curl http://127.0.0.1:8000/health`를 실행해 `{"status":"ok"}`가 나오면 됩니다.
+   - 폰에서 접속할 때 Mac의 내부 IP는 `ipconfig getifaddr en0`으로 확인합니다(Wi-Fi 기준).

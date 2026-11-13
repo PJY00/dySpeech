@@ -1,0 +1,1976 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "dySpeech API",
+    "version": "0.2.1"
+  },
+  "paths": {
+    "/v1/users/{user_id}": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "사용자 등록",
+        "operationId": "put_user_v1_users__user_id__put",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid4",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "같은 user_id에 다른 내용이 이미 있음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{user_id}/history": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "진전도와 변화 판정",
+        "operationId": "get_history_v1_users__user_id__history_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid4",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "사용자 없음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}": {
+      "put": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "세션 등록",
+        "operationId": "put_session_v1_sessions__session_id__put",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid4",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "user_id의 사용자 없음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "같은 session_id에 다른 내용이 이미 있음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "처리 상태와 서버 지표",
+        "operationId": "get_session_v1_sessions__session_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid4",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "세션 없음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/upload-urls": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "녹음 업로드 URL 발급",
+        "operationId": "post_upload_urls_v1_sessions__session_id__upload_urls_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid4",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadUrlsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadUrlsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "세션 없음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "같은 recording_id에 다른 내용이 이미 있음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/complete": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "세션 완료",
+        "operationId": "post_complete_v1_sessions__session_id__complete_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid4",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompleteAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "세션 없음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "올라오지 않은 녹음이 있음. missing_recording_ids의 파일만 다시 올리고 재요청",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingRecordingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청이 API 명세와 다름(VALIDATION_ERROR, fields에 문제 필드의 경로와 이유), 또는 올린 WAV가 규격과 다름(INVALID_RECORDING_FORMAT, invalid_recordings에 녹음 ID와 이유)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRecordingsResponse"
+                    }
+                  ],
+                  "title": "Response 422 Post Complete V1 Sessions  Session Id  Complete Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/recordings/{recording_id}/url": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "녹음 열람 URL 발급",
+        "operationId": "get_recording_url_v1_recordings__recording_id__url_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid4",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingUrl"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "녹음 없음, 또는 보관 기한이 지남",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청이 API 명세와 다름. fields에 문제 필드의 경로와 이유",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/metrics": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "지표 정의",
+        "operationId": "get_metrics_v1_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricDefinitions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-App-Key가 없거나 맞지 않음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문이 1 MB를 넘음",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgcSignal": {
+        "type": "string",
+        "enum": [
+          "agc_steps",
+          "agc_hold",
+          "agc_toggle"
+        ],
+        "title": "AgcSignal",
+        "description": "자동 게인 조절 시험 소리. 시험 소리 정답값 파일의 이름과 같다."
+      },
+      "BaselinePoint": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Session Id"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "value"
+        ],
+        "title": "BaselinePoint"
+      },
+      "ChangeStatus": {
+        "type": "string",
+        "enum": [
+          "no_data",
+          "low_reliability",
+          "pending_mdc",
+          "no_change",
+          "increase",
+          "decrease"
+        ],
+        "title": "ChangeStatus"
+      },
+      "CompleteAccepted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Session Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionStatus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "title": "CompleteAccepted"
+      },
+      "CompleteIn": {
+        "properties": {
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At"
+          },
+          "device_measurements": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceMeasurement"
+            },
+            "type": "array",
+            "title": "Device Measurements"
+          },
+          "game_runs": {
+            "items": {
+              "$ref": "#/components/schemas/GameRun"
+            },
+            "type": "array",
+            "title": "Game Runs"
+          },
+          "client_meta": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Client Meta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ended_at"
+        ],
+        "title": "CompleteIn"
+      },
+      "Decision": {
+        "type": "string",
+        "enum": [
+          "up",
+          "down",
+          "hold",
+          "deferred"
+        ],
+        "title": "Decision"
+      },
+      "DesiredDirection": {
+        "type": "string",
+        "enum": [
+          "up",
+          "down",
+          "none"
+        ],
+        "title": "DesiredDirection"
+      },
+      "DeviceMeasurement": {
+        "properties": {
+          "metric": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "low_reliability": {
+            "type": "boolean",
+            "title": "Low Reliability",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "value",
+          "unit"
+        ],
+        "title": "DeviceMeasurement"
+      },
+      "DeviceSessionMeasurements": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Session Id"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "measurements": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceMeasurement"
+            },
+            "type": "array",
+            "title": "Measurements"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "started_at",
+          "measurements"
+        ],
+        "title": "DeviceSessionMeasurements"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "SESSION_NOT_FOUND"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "FieldError": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "examples": [
+              "body.recordings[1].trial_no"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "examples": [
+              "mpt_trial 녹음에는 trial_no 값이 필요합니다"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "reason"
+        ],
+        "title": "FieldError"
+      },
+      "GameRun": {
+        "properties": {
+          "game_run_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Game Run Id"
+          },
+          "game": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Game"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Level"
+          },
+          "round_index": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Round Index"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Params"
+          },
+          "success_rate_pct": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Success Rate Pct"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason"
+          },
+          "result": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Result"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "game_run_id",
+          "game",
+          "level",
+          "round_index",
+          "started_at",
+          "success_rate_pct",
+          "decision"
+        ],
+        "title": "GameRun"
+      },
+      "History": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "User Id"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricHistory"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "recent_device_measurements": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceSessionMeasurements"
+            },
+            "type": "array",
+            "title": "Recent Device Measurements"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user_id",
+          "metrics",
+          "recent_device_measurements"
+        ],
+        "title": "History"
+      },
+      "InvalidRecording": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Recording Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "examples": [
+              "채널이 2개입니다. 모노(1개)여야 합니다"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recording_id",
+          "reason"
+        ],
+        "title": "InvalidRecording"
+      },
+      "InvalidRecordingsDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "SESSION_NOT_FOUND"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "invalid_recordings": {
+            "items": {
+              "$ref": "#/components/schemas/InvalidRecording"
+            },
+            "type": "array",
+            "title": "Invalid Recordings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "invalid_recordings"
+        ],
+        "title": "InvalidRecordingsDetail"
+      },
+      "InvalidRecordingsResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/InvalidRecordingsDetail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "InvalidRecordingsResponse"
+      },
+      "JsonValue": {},
+      "LatestPoint": {
+        "properties": {
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "change": {
+            "type": "number",
+            "title": "Change"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "change"
+        ],
+        "title": "LatestPoint"
+      },
+      "Mdc": {
+        "properties": {
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "scale": {
+            "$ref": "#/components/schemas/MdcScale"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "scale"
+        ],
+        "title": "Mdc"
+      },
+      "MdcScale": {
+        "type": "string",
+        "enum": [
+          "raw",
+          "log"
+        ],
+        "title": "MdcScale"
+      },
+      "Metric": {
+        "type": "string",
+        "enum": [
+          "max_phonation_time",
+          "loudness_decay_slope",
+          "mean_level_change",
+          "articulation_rate",
+          "speech_rate",
+          "pause_ratio",
+          "f0_sd_semitones",
+          "pitch_range_semitones",
+          "sustained_level",
+          "f0_median",
+          "noise_floor"
+        ],
+        "title": "Metric"
+      },
+      "MetricDefinition": {
+        "properties": {
+          "metric": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "desired_direction": {
+            "$ref": "#/components/schemas/DesiredDirection"
+          },
+          "mdc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Mdc"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "unit",
+          "desired_direction",
+          "mdc"
+        ],
+        "title": "MetricDefinition"
+      },
+      "MetricDefinitions": {
+        "properties": {
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricDefinition"
+            },
+            "type": "array",
+            "title": "Metrics"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metrics"
+        ],
+        "title": "MetricDefinitions"
+      },
+      "MetricHistory": {
+        "properties": {
+          "metric": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "desired_direction": {
+            "$ref": "#/components/schemas/DesiredDirection"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BaselinePoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesPoint"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mdc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Mdc"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChangeStatus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "unit",
+          "desired_direction",
+          "baseline",
+          "series",
+          "latest",
+          "mdc",
+          "status"
+        ],
+        "title": "MetricHistory"
+      },
+      "MissingRecordingsDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "SESSION_NOT_FOUND"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "missing_recording_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid4"
+            },
+            "type": "array",
+            "title": "Missing Recording Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "missing_recording_ids"
+        ],
+        "title": "MissingRecordingsDetail"
+      },
+      "MissingRecordingsResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/MissingRecordingsDetail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "MissingRecordingsResponse"
+      },
+      "Purpose": {
+        "type": "string",
+        "enum": [
+          "training",
+          "retest",
+          "agc_test"
+        ],
+        "title": "Purpose"
+      },
+      "RecordingIn": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Recording Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RecordingKind"
+          },
+          "trial_no": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trial No"
+          },
+          "sentence_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentenceId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "game_run_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid4"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Run Id"
+          },
+          "agc_signal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgcSignal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duration_s": {
+            "type": "number",
+            "maximum": 120.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Duration S"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "enum": [
+              16000,
+              44100,
+              48000
+            ],
+            "title": "Sample Rate"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Size Bytes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recording_id",
+          "kind",
+          "duration_s",
+          "sample_rate",
+          "size_bytes"
+        ],
+        "title": "RecordingIn"
+      },
+      "RecordingKind": {
+        "type": "string",
+        "enum": [
+          "calibration_glide",
+          "noise_floor",
+          "mpt_trial",
+          "eval_sentence",
+          "game",
+          "agc_tone"
+        ],
+        "title": "RecordingKind"
+      },
+      "RecordingUrl": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Recording Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recording_id",
+          "url",
+          "expires_at"
+        ],
+        "title": "RecordingUrl"
+      },
+      "SentenceId": {
+        "type": "string",
+        "enum": [
+          "s1"
+        ],
+        "title": "SentenceId",
+        "description": "평가 전용 문장 ID. 서버 설정에 있는 값만 받는다."
+      },
+      "SeriesPoint": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Session Id"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "low_reliability": {
+            "type": "boolean",
+            "title": "Low Reliability"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "started_at",
+          "value",
+          "low_reliability"
+        ],
+        "title": "SeriesPoint"
+      },
+      "ServerMeasurement": {
+        "properties": {
+          "metric": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "low_reliability": {
+            "type": "boolean",
+            "title": "Low Reliability"
+          },
+          "algorithm_version": {
+            "type": "string",
+            "title": "Algorithm Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "value",
+          "unit",
+          "low_reliability",
+          "algorithm_version"
+        ],
+        "title": "ServerMeasurement"
+      },
+      "Session": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "User Id"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/Purpose"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "device_model": {
+            "type": "string",
+            "title": "Device Model"
+          },
+          "os_version": {
+            "type": "string",
+            "title": "Os Version"
+          },
+          "app_version": {
+            "type": "string",
+            "title": "App Version"
+          },
+          "input_device": {
+            "type": "string",
+            "title": "Input Device"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "enum": [
+              16000,
+              44100,
+              48000
+            ],
+            "title": "Sample Rate"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionStatus"
+          },
+          "is_baseline": {
+            "type": "boolean",
+            "title": "Is Baseline"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "purpose",
+          "started_at",
+          "ended_at",
+          "device_model",
+          "os_version",
+          "app_version",
+          "input_device",
+          "sample_rate",
+          "status",
+          "is_baseline"
+        ],
+        "title": "Session"
+      },
+      "SessionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "User Id"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/Purpose"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "device_model": {
+            "type": "string",
+            "title": "Device Model"
+          },
+          "os_version": {
+            "type": "string",
+            "title": "Os Version"
+          },
+          "app_version": {
+            "type": "string",
+            "title": "App Version"
+          },
+          "input_device": {
+            "type": "string",
+            "title": "Input Device"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "enum": [
+              16000,
+              44100,
+              48000
+            ],
+            "title": "Sample Rate"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionStatus"
+          },
+          "is_baseline": {
+            "type": "boolean",
+            "title": "Is Baseline"
+          },
+          "server_measurements": {
+            "items": {
+              "$ref": "#/components/schemas/ServerMeasurement"
+            },
+            "type": "array",
+            "title": "Server Measurements"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "purpose",
+          "started_at",
+          "ended_at",
+          "device_model",
+          "os_version",
+          "app_version",
+          "input_device",
+          "sample_rate",
+          "status",
+          "is_baseline",
+          "server_measurements",
+          "error"
+        ],
+        "title": "SessionDetail"
+      },
+      "SessionIn": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "User Id"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/Purpose"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "device_model": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Device Model"
+          },
+          "os_version": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Os Version"
+          },
+          "app_version": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "App Version"
+          },
+          "input_device": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Input Device"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "enum": [
+              16000,
+              44100,
+              48000
+            ],
+            "title": "Sample Rate"
+          },
+          "client_meta": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Client Meta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user_id",
+          "purpose",
+          "started_at",
+          "device_model",
+          "os_version",
+          "app_version",
+          "input_device",
+          "sample_rate"
+        ],
+        "title": "SessionIn"
+      },
+      "SessionStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "processing",
+          "done",
+          "failed"
+        ],
+        "title": "SessionStatus"
+      },
+      "Unit": {
+        "type": "string",
+        "enum": [
+          "s",
+          "dB/s",
+          "dB",
+          "dBFS",
+          "Hz",
+          "semitones",
+          "syllables/s",
+          "%"
+        ],
+        "title": "Unit"
+      },
+      "Upload": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Recording Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "method": {
+            "type": "string",
+            "const": "PUT",
+            "title": "Method"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Headers"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recording_id",
+          "url",
+          "method",
+          "headers",
+          "expires_at"
+        ],
+        "title": "Upload"
+      },
+      "UploadUrlsIn": {
+        "properties": {
+          "recordings": {
+            "items": {
+              "$ref": "#/components/schemas/RecordingIn"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Recordings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recordings"
+        ],
+        "title": "UploadUrlsIn"
+      },
+      "UploadUrlsOut": {
+        "properties": {
+          "uploads": {
+            "items": {
+              "$ref": "#/components/schemas/Upload"
+            },
+            "type": "array",
+            "title": "Uploads"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "uploads"
+        ],
+        "title": "UploadUrlsOut"
+      },
+      "User": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "created_at"
+        ],
+        "title": "User"
+      },
+      "UserIn": {
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "created_at"
+        ],
+        "title": "UserIn"
+      },
+      "ValidationErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "SESSION_NOT_FOUND"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "fields"
+        ],
+        "title": "ValidationErrorDetail"
+      },
+      "ValidationErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ValidationErrorDetail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ValidationErrorResponse"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "description": "앱 요청을 확인하는 키",
+        "in": "header",
+        "name": "X-App-Key"
+      }
+    }
+  }
+}
