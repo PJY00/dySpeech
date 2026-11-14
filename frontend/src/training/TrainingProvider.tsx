@@ -25,7 +25,7 @@ import { recentCards } from './labels';
 import type { SessionCard } from './labels';
 import { LevelBook } from './levels';
 import { OpenSessionBook, planUnfinished, reportedToday } from './openSession';
-import { completedAreas, dayKey, TodayBook } from './progress';
+import { completedAreas, dayKey, summarizeRun, TodayBook } from './progress';
 import type { RoundSummary } from './progress';
 
 const RECENT_CARDS = 3;
@@ -235,9 +235,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       if (open?.purpose === 'training') {
         await openBook.write({ sessionId: open.id, rounds: counts, lastActivityAt: new Date().toISOString() });
       }
-      setTodayRounds(
-        await today.add({ game: entry.game, area: entry.area, success_rate_pct: run.success_rate_pct, decision: run.decision }),
-      );
+      setTodayRounds(await today.add(summarizeRun(run, entry.area)));
       const nextLevel = await levels.record(userKey, entry.game, run.level, run.decision, entry.maxLevel);
       const last = { entry, run, nextLevel };
       setLastRound(last);

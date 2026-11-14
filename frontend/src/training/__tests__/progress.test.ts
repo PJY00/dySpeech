@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { MemoryStore } from '../../session/store';
-import { completedAreas, dayKey, PASS_SUCCESS_RATE_PCT, passRateFor, roundPassed, TodayBook } from '../progress';
+import { completedAreas, dayKey, PASS_SUCCESS_RATE_PCT, passRateFor, roundPassed, summarizeRun, TodayBook } from '../progress';
 import type { RoundSummary } from '../progress';
 
 const round = (area: RoundSummary['area'], success_rate_pct: number, decision: RoundSummary['decision'] = 'hold'): RoundSummary => ({
@@ -24,6 +24,24 @@ test('게임별 통과 기준: 풍선·촛불은 목표를 끝까지 채워야(1
   assert.equal(roundPassed({ game: 'balloon', success_rate_pct: 90, decision: 'hold' }), false);
   assert.equal(roundPassed({ game: 'balloon', success_rate_pct: 100, decision: 'up' }), true);
   assert.equal(roundPassed({ game: 'candle', success_rate_pct: 100, decision: 'hold' }), true);
+});
+
+test('게임이 result.passed를 주면 성공률 대신 그 값으로 통과를 본다(우주선: 길 안 70%여도 통과, 85%여도 미통과)', () => {
+  const run = (success: number, passed: boolean) => ({
+    game_run_id: '6ecdaf48-7b9a-4fbc-936c-ba4b8e7fcd5a',
+    game: 'spaceship',
+    level: 2,
+    round_index: 1,
+    started_at: '2026-11-14T00:00:00Z',
+    success_rate_pct: success,
+    decision: 'hold' as const,
+    result: { passed },
+  });
+  assert.equal(roundPassed(summarizeRun(run(70, true), 'intonation')), true);
+  assert.equal(roundPassed(summarizeRun(run(85, false), 'intonation')), false);
+  const noFlag = summarizeRun({ ...run(85, true), game: 'guide_reading', result: { sentences: [] } }, 'rate');
+  assert.equal(noFlag.passed, undefined);
+  assert.equal(roundPassed(noFlag), true);
 });
 
 test('오늘 완료 영역: 통과한 라운드가 있는 영역만, 같은 영역은 한 번', () => {

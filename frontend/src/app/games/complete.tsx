@@ -12,7 +12,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { domains } from '@/data/domains';
 import type { Decision } from '@/session';
 import { colors, spacing } from '@/theme';
-import { passRateFor, roundPassed } from '@/training/progress';
+import { passRateFor, reportsPassed, roundPassed, summarizeRun } from '@/training/progress';
 import { useTraining } from '@/training/TrainingProvider';
 
 const DECISION_TEXT: Record<Decision, string> = {
@@ -31,10 +31,10 @@ export default function GameCompleteScreen() {
 
   const { entry, run, nextLevel } = lastRound;
   const domain = domains.find((d) => d.id === entry.area) ?? domains[0];
-  const passed = roundPassed(run);
+  const passed = roundPassed(summarizeRun(run, entry.area));
 
   const metrics = [
-    { label: '성공률', value: `${Math.round(run.success_rate_pct)}`, unit: '%', target: `통과 ${passRateFor(entry.game)}% 이상`, ok: passed },
+    { label: '성공률', value: `${Math.round(run.success_rate_pct)}`, unit: '%', target: reportsPassed(run) ? '게임 판정 기준' : `통과 ${passRateFor(entry.game)}% 이상`, ok: passed },
     { label: '이번 단계', value: `${run.level}`, unit: `/ ${entry.maxLevel}`, target: `${run.round_index}번째 라운드`, ok: passed },
     { label: '다음 단계', value: `${nextLevel}`, unit: `/ ${entry.maxLevel}`, target: DECISION_TEXT[run.decision], ok: passed },
   ];
