@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from analysis import recompute
@@ -121,6 +121,19 @@ def test_preview_shows_targets_and_writes_nothing(add_done, db, storage):
     assert f"서버 값 버전: {OLD_VERSION}" in text and "--yes" in text
     assert server_rows(db, first) == {} and server_rows(db, second) == {}
     assert db.get(UserRow, user_id).calibration["algorithm_version"] == OLD_VERSION
+
+
+def test_session_times_are_shown_in_korean_time_whatever_the_database_time_zone(add_done, db, storage):
+    _, session_id = add_done()
+    db.execute(text("SET TIME ZONE 'UTC'"))  # 운영 DB 연결처럼 UTC로 돌려주게 한다
+    try:
+        code, output = run(["--all"], db, storage)
+    finally:
+        db.execute(text("RESET TIME ZONE"))
+        db.commit()
+
+    # 09:00 UTC에 시작한 세션이다.
+    assert code == 0 and f"{session_id}  사용자 " in output and "  2026-11-20 18:00 KST  training  " in output
 
 
 def test_yes_recomputes_in_order_and_keeps_the_old_values(add_done, db, storage):

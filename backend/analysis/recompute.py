@@ -22,7 +22,7 @@ import sys
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -40,6 +40,7 @@ NOT_DONE = "done이 아님"
 BLOCKED = "앞선 세션을 먼저 계산해야 함"
 CHANGED = "계산하는 사이 상태가 바뀜"
 SHOWN = 20  # 목록으로 보여 주는 세션 수. 넘으면 개수만 알린다
+KST = timezone(timedelta(hours=9), "KST")  # 세션 시작 시각을 보여 주는 시간대
 
 
 @dataclass(frozen=True)
@@ -72,13 +73,13 @@ class Item:
         """
         세션을 한 줄로 나타냄
         입력: 없음
-        출력: "세션 ID  사용자 ID  시작 시각  목적  서버 값 버전" 형식의 문자열
+        출력: "세션 ID  사용자 ID  시작 시각 KST  목적  서버 값 버전" 형식의 문자열
         알고리즘
-        1. 시작 시각은 분까지, 서버 값 버전은 쉼표로 이어 적음(없으면 "없음")
+        1. 시작 시각은 한국 시간(UTC+9)으로 바꿔 분까지, 서버 값 버전은 쉼표로 이어 적음(없으면 "없음")
         """
         versions = ", ".join(self.versions) or "없음"
         return (
-            f"{self.session_id}  사용자 {self.user_id}  {self.started_at:%Y-%m-%d %H:%M}  "
+            f"{self.session_id}  사용자 {self.user_id}  {self.started_at.astimezone(KST):%Y-%m-%d %H:%M} KST  "
             f"{self.purpose.value}  서버 값 버전: {versions}"
         )
 
