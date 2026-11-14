@@ -1,0 +1,18 @@
+export const C = {
+  space: '#0B0A1F',
+  spaceDeep: '#06051A',
+  lane: 'rgba(138,132,238,0.22)',
+  laneEdge: '#8A84EE',
+  hazard: 'rgba(255,92,138,0.16)',
+  bullet: '#FF5C8A',
+  bulletCore: '#FFD1DF',
+  star: '#FFD23F',
+  ship: '#6FE7FF',
+  flame: '#FFB347',
+  voice: '#FFFFFF',
+  text: '#EDEBFF',
+  dim: '#8C88B8',
+  panel: 'rgba(20,18,48,0.85)',
+  good: '#5BE3A4',
+  warn: '#FFB347',
+} as const;
