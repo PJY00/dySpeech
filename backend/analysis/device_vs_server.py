@@ -16,6 +16,7 @@ backend 폴더에서 실행한다. DB는 .env(또는 환경 변수)의 운영 �
 - d(차이) = x_device(기기 값) − x_server(서버 값). 양수면 기기 값이 더 크다.
 - 95% 일치 한계 = d̄(평균 차이) ± 1.96 × s(차이의 표본 표준편차). 같은 사람의 여러 회차가 섞이면 실제보다 좁게 나올 수 있다.
 - 평균 상대 차이(%) = 100 × (d(차이) ÷ x_server(서버 값))의 평균. 비율로 볼 수 있는 단위(초, 음절/초, Hz)에만 낸다.
+- 세션 시작 시각은 한국 시간(UTC+9)으로 보여 준다.
 """
 
 import argparse
@@ -24,7 +25,7 @@ import sys
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from sqlalchemy import and_, select
@@ -35,6 +36,7 @@ from app.db.models import MeasurementRow, MeasurementSource, SessionRow
 from app.metrics.version import ALGORITHM_VERSION
 from app.schemas.common import Metric, Purpose, SessionStatus, Unit
 
+KST = timezone(timedelta(hours=9), "KST")  # 세션 시작 시각을 보여 주는 시간대
 LIMIT_FACTOR = 1.96  # 95% 일치 한계의 배수
 RATIO_UNITS = {Unit.seconds, Unit.syllables_per_second, Unit.hertz}  # 상대 차이(%)를 내는 단위
 METRIC_ORDER = {metric.value: index for index, metric in enumerate(METRICS)}
@@ -45,7 +47,7 @@ class Pair:
     session_id: uuid.UUID
     user_id: uuid.UUID
     purpose: str
-    started_at: datetime
+    started_at: datetime  # 한국 시간
     metric: str
     unit: str
     device: float
@@ -101,7 +103,7 @@ def load_pairs(
     - purpose: 이 목적의 세션만(선택)
     - include_dev: 개발용 사용자의 세션도 넣을지
     - include_low_reliability: 신뢰 낮음 값도 넣을지
-    출력: (Pair 목록(세션 시작 시각·세션 ID·지표 정의 순), Excluded(뺀 개발용 세션 수, 뺀 신뢰 낮음 쌍 수))
+    출력: (Pair 목록(세션 시작 시각·세션 ID·지표 정의 순. 시작 시각은 한국 시간으로 바꿔 둠), Excluded(뺀 개발용 세션 수, 뺀 신뢰 낮음 쌍 수))
     알고리즘
     1. done 세션에서 기기 측정값(source = device)과, 같은 세션·같은 지표이고 알고리즘 버전이 지금 버전(ALGORITHM_VERSION)인 서버 측정값(source = server)을 짝지어 읽음
     2. 사용자·세션·목적 조건이 있으면 그 세션만 읽음
@@ -149,7 +151,8 @@ def load_pairs(
         if low and not include_low_reliability:
             low_pairs += 1
             continue
-        pairs.append(Pair(found_id, found_user, found_purpose.value, started_at, metric, unit, device_value, server_value, low))
+        started = started_at.astimezone(KST)
+        pairs.append(Pair(found_id, found_user, found_purpose.value, started, metric, unit, device_value, server_value, low))
     pairs.sort(key=lambda pair: (pair.started_at, str(pair.session_id), METRIC_ORDER.get(pair.metric, len(METRIC_ORDER))))
     return pairs, Excluded(len(dev_sessions), low_pairs)
 
@@ -216,7 +219,7 @@ def render(pairs: list[Pair], summaries: list[Summary], excluded: Excluded, deta
     1. 머리말에 알고리즘 버전, 세션 수, 화자 수, 차이의 정의, 뺀 개발용 세션 수와 신뢰 낮음 쌍 수를 적음
     2. 쌍이 없으면 "비교할 값이 없습니다"를 적고 끝냄
     3. 지표마다 단위, 쌍 수, 화자 수, 평균 차이, 표준편차, 평균 절대 차이, 최대 절대 차이, 95% 일치 한계, 평균 상대 차이를 한 줄로 적음. 없는 값은 "-"
-    4. detail이면 쌍마다 세션 ID, 시작 시각, 목적, 지표, 기기 값, 서버 값, 차이를 한 줄로 적고, 신뢰 낮음이면 표시함
+    4. detail이면 쌍마다 세션 ID, 시작 시각(한국 시간, 분까지), 목적, 지표, 기기 값, 서버 값, 차이를 한 줄로 적고, 신뢰 낮음이면 표시함
     """
     sessions = {pair.session_id for pair in pairs}
     speakers = {pair.user_id for pair in pairs}
@@ -242,7 +245,7 @@ def render(pairs: list[Pair], summaries: list[Summary], excluded: Excluded, deta
             f"{item.mean_absolute_difference:.2f} | {item.max_absolute_difference:.2f} | {limits} | {relative} |"
         )
     if detail:
-        lines += ["", "| 세션 | 시작 | 목적 | 지표 | 기기 값 | 서버 값 | 차이 |", "|---|---|---|---|---|---|---|"]
+        lines += ["", "| 세션 | 시작(한국 시간) | 목적 | 지표 | 기기 값 | 서버 값 | 차이 |", "|---|---|---|---|---|---|---|"]
         for pair in pairs:
             mark = " (신뢰 낮음)" if pair.low_reliability else ""
             lines.append(
@@ -256,7 +259,7 @@ def to_json(pairs: list[Pair], summaries: list[Summary], excluded: Excluded, det
     """
     비교 결과를 JSON 문자열로 만듦
     입력: pairs (비교한 쌍), summaries (지표별 요약), excluded (뺀 세션·쌍 수), detail (세션별 값도 넣을지)
-    출력: JSON 문자열. algorithm_version, sessions(세션 수), speakers(화자 수), excluded, metrics(지표별 요약), detail이면 pairs(쌍마다 세션 ID, 사용자 ID, 목적, 시작 시각, 지표, 단위, 기기 값, 서버 값, 차이, 신뢰 낮음)
+    출력: JSON 문자열. algorithm_version, sessions(세션 수), speakers(화자 수), excluded, metrics(지표별 요약), detail이면 pairs(쌍마다 세션 ID, 사용자 ID, 목적, 시작 시각(한국 시간 ISO 8601), 지표, 단위, 기기 값, 서버 값, 차이, 신뢰 낮음)
     알고리즘
     1. 요약과 뺀 수를 사전으로 바꿈
     2. detail이면 쌍마다 ID와 시각을 문자열로 바꾸고 차이를 더해 넣음

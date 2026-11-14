@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import text
 
 from analysis import device_vs_server
 from app.config.metrics import METRICS
@@ -158,6 +159,21 @@ def test_markdown_table_and_detail_rows(add_session, db):
     assert "| 131.10 | 130.80 | +0.30 (신뢰 낮음) |" in detail[1]
 
     assert "| 세션 | 시작 |" not in run([], db)[1]
+
+
+def test_session_times_are_shown_in_korean_time_whatever_the_database_time_zone(add_session, db):
+    add_session(device={"max_phonation_time": 7.0}, server={"max_phonation_time": 7.0})
+    db.execute(text("SET TIME ZONE 'UTC'"))  # 운영 DB 연결처럼 UTC로 돌려주게 한다
+    try:
+        code, table = run(["--detail"], db)
+        pairs = summary(["--detail"], db)["pairs"]
+    finally:
+        db.execute(text("RESET TIME ZONE"))
+        db.commit()
+
+    # 09:00 UTC에 시작한 세션이다.
+    assert code == 0 and "| 세션 | 시작(한국 시간) |" in table and "| 2026-11-20 18:00 | training |" in table
+    assert pairs[0]["started_at"] == "2026-11-20T18:00:00+09:00"
 
 
 def test_no_pairs_is_reported_without_a_table(add_session, db):
