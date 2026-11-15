@@ -201,6 +201,24 @@ def test_without_noise_recording_values_are_low_reliability():
     assert "잡음 바닥 녹음이 없어" in result.notes[0]
 
 
+@pytest.mark.parametrize(
+    "recordings",
+    [
+        [RecordingInput(RecordingKind.agc_tone, lambda: wav_bytes(sine(1.0, hz=1000)))],
+        [RecordingInput(RecordingKind.game, lambda: wav_bytes(sine(1.0, hz=200)))],
+        [RecordingInput(RecordingKind.eval_sentence, lambda: b"", "s9")],
+        [],
+    ],
+    ids=["agc_tone", "game", "unknown_sentence", "empty"],
+)
+def test_without_measurement_recordings_there_is_no_noise_floor_note(recordings):
+    # 잡음 바닥 대체 값은 mpt_trial과 서버 설정에 있는 eval_sentence에만 쓴다. 그런 녹음이 없으면 안내도 없다.
+    result = compute_session(recordings)
+
+    assert result.values == []
+    assert result.notes == []
+
+
 def test_short_phonation_slope_is_low_reliability():
     noise = 1e-3 * np.random.default_rng(1).standard_normal(48000 * 2)
     tone = np.concatenate([np.zeros(24000), sine(1.5, hz=200), np.zeros(24000)]) + 1e-3 * np.random.default_rng(2).standard_normal(48000 * 5 // 2)

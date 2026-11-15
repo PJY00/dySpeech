@@ -1,6 +1,7 @@
 """처리 작업: 로컬 테스트 DB와 moto S3에 합성 녹음을 넣고 서버 지표 계산·저장·상태 전환을 확인한다."""
 
 import json
+import logging
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -218,13 +219,18 @@ def test_retest_sessions_use_the_first_retest_as_reference(add_session, run_all,
     assert not fresh(db, SessionRow, first).is_baseline
 
 
-def test_agc_session_is_done_without_server_values(add_session, run_all, db):
+def test_agc_session_is_done_without_server_values(add_session, run_all, db, caplog):
     _, session_id = add_session(purpose=Purpose.agc_test, files=[("agc_tone", "steady_phonation", None, None)])
 
-    run_all()
+    with caplog.at_level(logging.INFO, logger=processing.logger.name):
+        run_all()
 
     assert fresh(db, SessionRow, session_id).status == "done"
     assert server_values(db, session_id) == {}
+    # 측정 녹음이 없는 세션의 완료 기록에는 잡음 바닥 안내(참고)가 붙지 않는다.
+    done = [r.getMessage() for r in caplog.records if "지표 계산 완료" in r.getMessage()]
+    assert len(done) == 1 and str(session_id) in done[0]
+    assert "참고" not in done[0]
 
 
 def test_processing_again_replaces_values_of_the_same_version(add_session, run_all, db):

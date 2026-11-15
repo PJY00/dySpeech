@@ -88,20 +88,26 @@ def compute_session(
     입력: recordings (이 세션에서 올라온 녹음: 종류, 바이트를 읽는 함수, sentence_id, trial_no), calibration (저장된 편한 음높이 범위 (최저, 최고), Hz. 이 세션에 캘리브레이션 값이 없을 때 씀), detector (발화 검출기. 없으면 공용 검출기)
     출력: SessionMetrics(지표 값 목록, 평가 문장 발화 음량(dBFS), 이 세션 캘리브레이션 범위(Hz), 참고 메모). 평균 음량 변화는 기준 회차가 있어야 하므로 여기서 구하지 않고, 처리 작업이 평가 문장 발화 음량을 기준 회차 값과 뺌
     알고리즘
-    1. 첫 noise_floor 녹음이 있으면 프레임 음량 중앙값을 잡음 바닥(dBFS)으로 하고 noise_floor 지표로 더함. 없으면 메모를 남기고, 녹음마다 그 녹음 프레임 음량의 하위 10백분위를 잡음 바닥으로 씀
-    2. 첫 calibration_glide 녹음이 있으면 편한 음높이 범위를 구해 결과에 둠. 못 구하면 메모를 남김
-    3. mpt_trial 녹음들로 최대발성지속시간, "아" 음량, 음량 감쇠 기울기를 구함(sustained)
-    4. sentence_id가 서버 설정에 있는 첫 eval_sentence 녹음이 있으면, 이 세션 캘리브레이션(없으면 입력 calibration)으로 말속도 지표, 억양 지표, 기본주파수 중앙값, 평가 문장 발화 음량을 구함(reading)
-    5. 잡음 바닥 녹음이 없었다는 표시를 3·4단계에 넘김. 녹음은 필요할 때 하나씩 읽고 버려 메모리를 아낌
+    1. 잡음 바닥을 쓰는 측정 녹음을 고름: mpt_trial 녹음들, sentence_id가 서버 설정에 있는 첫 eval_sentence 녹음
+    2. 첫 noise_floor 녹음이 있으면 프레임 음량 중앙값을 잡음 바닥(dBFS)으로 하고 noise_floor 지표로 더함. 없으면 녹음마다 그 녹음 프레임 음량의 하위 10백분위를 잡음 바닥으로 쓰고, 1단계의 측정 녹음이 하나라도 있을 때만 메모를 남김(자동 게인 조절 시험 세션처럼 측정 녹음이 없으면 대체 값을 쓰지 않으므로 남기지 않음)
+    3. 첫 calibration_glide 녹음이 있으면 편한 음높이 범위를 구해 결과에 둠. 못 구하면 메모를 남김
+    4. mpt_trial 녹음들로 최대발성지속시간, "아" 음량, 음량 감쇠 기울기를 구함(sustained)
+    5. 1단계의 eval_sentence 녹음이 있으면, 이 세션 캘리브레이션(없으면 입력 calibration)으로 말속도 지표, 억양 지표, 기본주파수 중앙값, 평가 문장 발화 음량을 구함(reading)
+    6. 잡음 바닥 녹음이 없었다는 표시를 4·5단계에 넘김. 녹음은 필요할 때 하나씩 읽고 버려 메모리를 아낌
     """
     result = SessionMetrics()
+
+    trials = [r for r in recordings if r.kind is RecordingKind.mpt_trial]
+    sentence = next(
+        (r for r in recordings if r.kind is RecordingKind.eval_sentence and r.sentence_id in EVAL_SENTENCES), None
+    )
 
     noise_recording = first(recordings, RecordingKind.noise_floor)
     noise_floor = None
     if noise_recording is not None:
         noise_floor = float(np.median(load_wav(noise_recording.load()).levels))
         result.add(Metric.noise_floor, noise_floor)
-    else:
+    elif trials or sentence is not None:
         result.notes.append("잡음 바닥 녹음이 없어 녹음마다 음량 하위 10백분위를 잡음 바닥으로 썼다")
 
     def floor_for(audio: Audio) -> float:
@@ -120,11 +126,8 @@ def compute_session(
         if result.calibration is None:
             result.notes.append("캘리브레이션 녹음에서 음높이를 충분히 찾지 못했다")
 
-    sustained(result, [r for r in recordings if r.kind is RecordingKind.mpt_trial], floor_for, noise_floor is None)
+    sustained(result, trials, floor_for, noise_floor is None)
 
-    sentence = next(
-        (r for r in recordings if r.kind is RecordingKind.eval_sentence and r.sentence_id in EVAL_SENTENCES), None
-    )
     if sentence is not None:
         reading(result, sentence, floor_for, result.calibration or calibration, detector or get_detector(), noise_floor is None)
     return result
@@ -174,7 +177,7 @@ def reading(result: SessionMetrics, sentence: RecordingInput, floor_for, calibra
     출력: 없음 (result에 articulation_rate·speech_rate(음절/초), pause_ratio(%), f0_sd_semitones·pitch_range_semitones(반음), f0_median(Hz)을 더하고 sentence_level(평가 문장 발화 음량, dBFS)을 둠. 못 구한 단계는 메모만 남김)
     알고리즘
     1. 녹음을 읽고 잡음 바닥을 정한 뒤, 발화 확률로 발화와 휴지를 나눔(find_reading). 발화가 없으면 메모를 남기고 끝냄
-    2. 정답 음절 수(서버 설정)와 검출 음절 수(count_nuclei)를 구함. 검출 음절 수는 저장만 하고, "읽기 오류 가능" 표시는 검출 음절 수 오차율을 확인할 때까지 끔
+    2. 정답 음절 수(서버 설정)와 검출 음절 수(count_nuclei)를 구함. 검출 음절 수는 저장만 함. "읽기 오류 가능" 표시는 쓰지 않음(환자 음성에서 바르게 읽은 녹음의 12%가 걸림, docs/validation.md 3.3)
     3. 말속도 지표 세 가지를 정답 음절 수로 구해 더함. 신뢰 낮음 = no_noise, 세부 정보 = total_s·pause_s(초, 소수 셋째 자리), detected_syllables, expected_syllables
     4. 발화 구간 프레임 음량의 중앙값을 sentence_level로 둠
     5. 캘리브레이션으로 탐색 범위를 정해(search_range) 기본주파수를 구하고, 발화 구간 안의 유성 프레임으로 억양을 구함. 기본주파수 프레임 시각은 frame_at으로 가장 가까운 음량 프레임에 맞춤
@@ -189,7 +192,7 @@ def reading(result: SessionMetrics, sentence: RecordingInput, floor_for, calibra
         return
     expected = EVAL_SENTENCES[sentence.sentence_id].syllables
     detected = syllables.count_nuclei(audio.samples)
-    # 검출 음절 수는 저장만 한다. "읽기 오류 가능" 표시는 4단계에서 오차율을 확인할 때까지 끈다.
+    # 검출 음절 수는 저장만 한다. "읽기 오류 가능" 표시는 쓰지 않는다(docs/validation.md 3.3).
     timing = {
         "total_s": round(found.total_s, 3),
         "pause_s": round(found.pause_s, 3),

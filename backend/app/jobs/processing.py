@@ -219,7 +219,7 @@ def lock_if_processing(db: Session, session_id: UUID) -> SessionRow | None:
 def save(db: Session, session: SessionRow, result, recomputed) -> int:
     """
     잠근 세션에 계산 결과를 쓰고 done으로 바꿈
-    입력: db (DB 세션), session (잠근 세션 행, processing), result (계산 결과 SessionMetrics), recomputed (다시 구한 캘리브레이션과 그 세션 ID, 또는 None)
+    입력: db (DB 세션), session (잠근 세션 행. 처리 작업에서는 processing, 다시 계산(analysis.recompute)에서는 done), result (계산 결과 SessionMetrics), recomputed (다시 구한 캘리브레이션과 그 세션 ID, 또는 None)
     출력: 저장한 서버 지표 수. DB에 서버 측정값 행, 사용자 캘리브레이션, 세션 상태·기준선 표시를 씀(커밋은 부르는 쪽이 함)
     알고리즘
     1. 사용자 행을 세션 다음에 잠금(잠그는 순서는 항상 세션 → 사용자. 교착을 막음)
