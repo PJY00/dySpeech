@@ -41,7 +41,7 @@ from typing import BinaryIO
 import numpy as np
 
 from app.metrics import pitch, speech, syllables
-from app.metrics.audio import FRAME, HOP, HOP_S, RATE, bridge, frames, prepare, runs, to_16k
+from app.metrics.audio import FRAME, HOP, HOP_S, RATE, Audio, bridge, frames, prepare, runs, to_16k
 from app.metrics.pitch import MIN_VOICED_RATIO
 from app.metrics.session import FALLBACK_NOISE_PERCENTILE, frame_at
 from app.metrics.syllables import READING_ERROR_RATIO
@@ -181,15 +181,15 @@ class WavInfo:
     bits: int
 
 
-def read_blocks(stream: BinaryIO, block_s: float = BLOCK_S) -> tuple[WavInfo, Iterator[np.ndarray]]:
+def read_native_blocks(stream: BinaryIO, block_s: float = BLOCK_S) -> tuple[WavInfo, Iterator[np.ndarray]]:
     """
-    WAV를 앞에서부터 차례로 읽어 일정 길이씩 모노 16 kHz 표본으로 돌려줌. 파일 전체를 메모리에 올리지 않음
+    WAV를 앞에서부터 차례로 읽어 일정 길이씩 원래 샘플레이트의 모노 표본으로 돌려줌. 파일 전체를 메모리에 올리지 않음
     입력: stream (WAV 바이트를 앞에서부터 읽을 수 있는 것. zip 안의 파일도 됨), block_s (한 번에 돌려줄 길이, 초)
-    출력: (WavInfo(형식 코드, 채널 수, 샘플레이트 Hz, 표본당 비트), 16 kHz 모노 표본 배열을 차례로 내는 반복자). 머리글을 읽지 못하면 WavHeaderError, 소리 데이터 위치를 못 찾으면 ValueError
+    출력: (WavInfo(형식 코드, 채널 수, 샘플레이트 Hz, 표본당 비트), 원래 샘플레이트의 모노 표본 배열을 차례로 내는 반복자). 머리글을 읽지 못하면 WavHeaderError, 소리 데이터 위치를 못 찾으면 ValueError
     알고리즘
     1. 앞 64 KB를 읽어 형식 정보(parse_wav_header)와 소리 데이터 시작 위치(data_start)를 찾음
     2. 한 프레임 바이트 수 = 채널 수 × 표본당 바이트 수. block_s초 분량의 바이트를 프레임 경계에 맞춰 차례로 읽음
-    3. 읽은 덩어리마다 모노 −1~1로 풀고(decode) 16 kHz로 바꿔(prepare의 변환과 같은 다상 필터) 내보냄. 끝에 남은 프레임 조각은 버림
+    3. 읽은 덩어리마다 모노 −1~1로 풀어(decode) 내보냄. 끝에 남은 프레임 조각은 버림
     """
     head = stream.read(WAV_HEADER_BYTES)
     fmt = parse_wav_header(head)
@@ -202,12 +202,12 @@ def read_blocks(stream: BinaryIO, block_s: float = BLOCK_S) -> tuple[WavInfo, It
 
     def blocks() -> Iterator[np.ndarray]:
         """
-        소리 데이터를 block_s초씩 읽어 16 kHz 모노 표본으로 냄
+        소리 데이터를 block_s초씩 읽어 원래 샘플레이트의 모노 표본으로 냄
         입력: 없음 (바깥 함수의 stream, head, 형식 정보)
-        출력: 16 kHz 모노 표본 배열(32비트 실수)을 차례로 냄
+        출력: 모노 표본 배열(32비트 실수)을 차례로 냄
         알고리즘
         1. 머리글과 함께 이미 읽은 소리 데이터를 먼저 쓰고, block_s초 분량이 찰 때까지(또는 끝까지) stream에서 더 읽음
-        2. 프레임 경계에 맞게 잘라 풀고 16 kHz로 바꿔 냄. 더 읽을 것이 없으면 끝냄
+        2. 프레임 경계에 맞게 잘라 풀어 냄. 더 읽을 것이 없으면 끝냄
         """
         pending = head[start:]
         while True:
@@ -220,11 +220,24 @@ def read_blocks(stream: BinaryIO, block_s: float = BLOCK_S) -> tuple[WavInfo, It
             if usable == 0:
                 return
             chunk, pending = pending[:usable], pending[usable:]
-            yield to_16k(decode(chunk, info.format_code, info.bits, info.channels), info.sample_rate).astype(np.float32, copy=False)
+            yield decode(chunk, info.format_code, info.bits, info.channels)
             if usable < block_bytes:
                 return
 
     return info, blocks()
+
+
+def read_blocks(stream: BinaryIO, block_s: float = BLOCK_S) -> tuple[WavInfo, Iterator[np.ndarray]]:
+    """
+    WAV를 앞에서부터 차례로 읽어 일정 길이씩 모노 16 kHz 표본으로 돌려줌. 파일 전체를 메모리에 올리지 않음
+    입력: stream (WAV 바이트를 앞에서부터 읽을 수 있는 것. zip 안의 파일도 됨), block_s (한 번에 돌려줄 길이, 초)
+    출력: (WavInfo(형식 코드, 채널 수, 샘플레이트 Hz, 표본당 비트), 16 kHz 모노 표본 배열을 차례로 내는 반복자). 머리글을 읽지 못하면 WavHeaderError, 소리 데이터 위치를 못 찾으면 ValueError
+    알고리즘
+    1. read_native_blocks로 원래 샘플레이트의 덩어리를 받음
+    2. 덩어리마다 16 kHz로 바꿔(prepare의 변환과 같은 다상 필터) 내보냄
+    """
+    info, native = read_native_blocks(stream, block_s)
+    return info, (to_16k(samples, info.sample_rate).astype(np.float32, copy=False) for samples in native)
 
 
 @dataclass
@@ -261,30 +274,43 @@ def utterances_of(segments: list[tuple[int, int]]) -> list[list[tuple[int, int]]
     return groups
 
 
+def utterance_groups(samples: np.ndarray, detector) -> tuple[Audio, float, list[list[tuple[int, int]]]]:
+    """
+    16 kHz 표본 한 덩어리에서 서버와 같은 방법으로 발화 조각을 찾음
+    입력: samples (16 kHz 모노 표본), detector (발화 검출기)
+    출력: (Audio(60 Hz 고역 통과를 건 표본과 프레임 음량), 잡음 바닥(dBFS), 조각 목록). 조각 하나는 그 안의 발화 구간 (시작 프레임, 끝 프레임) 목록. 프레임이 없으면 잡음 바닥 0.0과 빈 목록
+    알고리즘
+    1. 60 Hz 고역 통과와 프레임 음량을 구하고(prepare), 발화 확률을 구함
+    2. 잡음 바닥 = 이 덩어리 프레임 음량의 하위 10백분위(서버가 잡음 바닥 녹음이 없을 때 쓰는 대체 값)
+    3. 발화 프레임(speech_frames)이 이어진 구간을 구하고 0.25초보다 짧은 공백은 이어 붙임(서버 find_reading과 같음)
+    4. 구간을 조각으로 묶음(utterances_of)
+    """
+    audio = prepare(samples, RATE)
+    if len(audio.levels) == 0:
+        return audio, 0.0, []
+    probabilities = detector.probabilities(audio.samples)
+    noise_floor = float(np.percentile(audio.levels, FALLBACK_NOISE_PERCENTILE))
+    mask = speech.speech_frames(audio, noise_floor, probabilities)
+    segments = bridge(runs(mask), frames(speech.PAUSE_S) - 1)
+    return audio, noise_floor, utterances_of(segments)
+
+
 def analyze_block(samples: np.ndarray, detector, totals: Totals, f0_values: list[np.ndarray], low_floor_values: list[np.ndarray]) -> None:
     """
     16 kHz 표본 한 덩어리에서 발화 조각을 찾아 조각마다 서버와 같은 방법으로 계산해 합계에 더함
     입력: samples (16 kHz 모노 표본), detector (발화 검출기), totals (녹음 하나의 합계. 여기에 더함), f0_values (기본 범위로 구한 발화 구간 기본주파수를 모으는 목록), low_floor_values (아래쪽 50 Hz로 구한 값을 모으는 목록)
     출력: 없음 (totals와 두 목록에 더함)
     알고리즘
-    1. 60 Hz 고역 통과와 프레임 음량을 구하고(prepare), 발화 확률을 구함
-    2. 잡음 바닥 = 이 덩어리 프레임 음량의 하위 10백분위(서버가 잡음 바닥 녹음이 없을 때 쓰는 대체 값)
-    3. 발화 프레임(speech_frames)이 이어진 구간을 구하고 0.25초보다 짧은 공백은 이어 붙임(서버 find_reading과 같음)
-    4. 구간을 조각으로 묶음(utterances_of). 조각의 발화 시간이 MIN_UTTERANCE_SPEECH_S(0.5초)보다 짧으면 버리고 수만 셈
+    1~3. 발화 조각을 찾음(utterance_groups): 프레임 음량, 발화 확률, 잡음 바닥(이 덩어리 프레임 음량의 하위 10백분위), 발화 구간
+    4. 조각의 발화 시간이 MIN_UTTERANCE_SPEECH_S(0.5초)보다 짧으면 버리고 수만 셈
     5. 조각마다 앞뒤 CLIP_MARGIN_S(0.3초)를 붙여 잘라, 음절 핵 수(count_nuclei)를 세고 발화 시간·휴지 시간을 더함. Praat이 실패하면 수만 셈
     6. 조각의 기본주파수를 기본 범위(75~500 Hz)와 아래쪽 50 Hz 범위로 구해 보정(clean)한 뒤, 발화 프레임 안의 유성 값을 모음
     7. 기본 범위에서 유성 비율(유성 값 수 ÷ 발화 구간에 든 기본주파수 프레임 수)이 0.5 미만이면 신뢰 낮음 조각으로 셈(서버의 신뢰 낮음 기준과 같음)
     8. 50 Hz 범위의 유성 값 중 75 Hz 아래인 것을 셈
     """
-    audio = prepare(samples, RATE)
-    if len(audio.levels) == 0:
-        return
-    probabilities = detector.probabilities(audio.samples)
-    noise_floor = float(np.percentile(audio.levels, FALLBACK_NOISE_PERCENTILE))
-    mask = speech.speech_frames(audio, noise_floor, probabilities)
-    segments = bridge(runs(mask), frames(speech.PAUSE_S) - 1)
+    audio, _, groups = utterance_groups(samples, detector)
     margin = frames(CLIP_MARGIN_S)
-    for group in utterances_of(segments):
+    for group in groups:
         speech_frames = sum(end - start for start, end in group)
         if speech_frames * HOP_S < MIN_UTTERANCE_SPEECH_S:
             totals.skipped_short += 1
@@ -398,6 +424,7 @@ class Task:
     sex: str
     age: str
     transcript: Transcript
+    text: str = ""  # 전사 원문(문장으로 나눌 때 씀)
 
 
 def load_tasks(audio_zip: Path, labels_zip: Path, group: str | None = None) -> tuple[list[Task], int, int]:
@@ -407,7 +434,7 @@ def load_tasks(audio_zip: Path, labels_zip: Path, group: str | None = None) -> t
     출력: (Task 목록(녹음 이름 순), 음성만 있고 라벨이 없는 수, 라벨만 있고 음성이 없는 수)
     알고리즘
     1. 음성 zip의 .wav 항목을 "녹음 이름 → 항목 이름"으로 모음(녹음 이름 = 확장자를 뗀 파일 이름)
-    2. 라벨 zip의 .json을 읽어 전사를 정리하고(clean_transcript), 질환 폴더·성별·나이·화자를 꺼냄
+    2. 라벨 zip의 .json을 읽어 전사를 정리하고(clean_transcript), 질환 폴더·성별·나이·화자를 꺼냄. 전사 원문도 Task에 둠
     3. 두 쪽에 모두 있는 녹음만 Task로 만들고, group이 있으면 그 질환만 남김
     """
     with zipfile.ZipFile(audio_zip) as audio:
@@ -433,9 +460,8 @@ def load_tasks(audio_zip: Path, labels_zip: Path, group: str | None = None) -> t
             label = json.loads(labels.read(info).decode("utf-8-sig"))
             patient = label.get("Patient_info") or {}
             sex, age = str(patient.get("Sex") or ""), str(patient.get("Age") or "")
-            tasks.append(
-                Task(recording_id, members[recording_id], folder, speaker_of(recording_id, sex, age), sex, age, clean_transcript(label.get("Transcript") or ""))
-            )
+            text = label.get("Transcript") or ""
+            tasks.append(Task(recording_id, members[recording_id], folder, speaker_of(recording_id, sex, age), sex, age, clean_transcript(text), text))
     tasks.sort(key=lambda task: task.recording_id)
     return tasks, len(set(members) - labelled), len(labelled - set(members))
 
@@ -491,18 +517,31 @@ def read_results(path: Path) -> list[dict]:
     return list(rows.values())
 
 
-def run(audio_zip: Path, labels_zip: Path, out_path: Path, group: str | None, limit: int | None, workers: int, out: Callable[[str], None]) -> int:
+def run(
+    audio_zip: Path,
+    labels_zip: Path,
+    out_path: Path,
+    group: str | None,
+    limit: int | None,
+    workers: int,
+    out: Callable[[str], None],
+    job: Callable[[str, Task], dict] | None = None,
+    keep: Callable[[Task], bool] | None = None,
+) -> int:
     """
     녹음을 계산해 결과 파일에 한 줄씩 더함. 이미 있는 녹음은 건너뜀
-    입력: audio_zip (음성 zip), labels_zip (라벨 zip), out_path (결과 파일, JSON Lines), group (질환 폴더 이름의 앞 글자, 선택), limit (앞에서 이만큼만, 선택), workers (동시에 계산할 프로세스 수), out (진행 상황을 출력할 함수)
+    입력: audio_zip (음성 zip), labels_zip (라벨 zip), out_path (결과 파일, JSON Lines), group (질환 폴더 이름의 앞 글자, 선택), limit (앞에서 이만큼만, 선택), workers (동시에 계산할 프로세스 수), out (진행 상황을 출력할 함수), job (녹음 하나를 계산하는 함수 (음성 zip 경로, Task) → 결과 사전. 없으면 compute. 결과에 id, duration_s, seconds, error가 있어야 함), keep (계산할 녹음만 고르는 함수. 없으면 모두)
     출력: 실패한 녹음 수. 결과 파일에 녹음마다 한 줄을 더함(끝날 때마다 바로 씀)
     알고리즘
-    1. 계산할 목록을 만들고(load_tasks), 결과 파일에 오류 없이 들어 있는 녹음은 뺌. limit이 있으면 앞에서 그만큼만 남김
-    2. workers가 1이면 이 프로세스에서 차례로, 아니면 프로세스 풀로 계산함(compute)
+    1. 계산할 목록을 만들고(load_tasks) keep이 있으면 그 녹음만 남김. 결과 파일에 오류 없이 들어 있는 녹음은 뺌. limit이 있으면 앞에서 그만큼만 남김
+    2. workers가 1이면 이 프로세스에서 차례로, 아니면 프로세스 풀로 계산함(job)
     3. 녹음이 끝날 때마다 결과를 파일 끝에 쓰고, 몇 번째인지와 걸린 시간을 출력함
     4. 끝나면 계산한 녹음 길이 합, 걸린 시간, 실패 수를 출력함
     """
+    job = job or compute
     tasks, audio_only, label_only = load_tasks(audio_zip, labels_zip, group)
+    if keep is not None:
+        tasks = [task for task in tasks if keep(task)]
     done = {row["id"] for row in read_results(out_path) if not row.get("error")}
     todo = [task for task in tasks if task.recording_id not in done]
     if limit is not None:
@@ -537,10 +576,10 @@ def run(audio_zip: Path, labels_zip: Path, out_path: Path, group: str | None, li
 
     if workers <= 1:
         for index, task in enumerate(todo, 1):
-            record(index, compute(str(audio_zip), task))
+            record(index, job(str(audio_zip), task))
     else:
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(compute, str(audio_zip), task) for task in todo]
+            futures = [pool.submit(job, str(audio_zip), task) for task in todo]
             for index, future in enumerate(as_completed(futures), 1):
                 record(index, future.result())
     elapsed = time.perf_counter() - started
