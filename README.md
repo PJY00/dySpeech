@@ -138,3 +138,34 @@ Apple 칩 Mac과 Homebrew 기준입니다. Homebrew가 없으면 https://brew.sh
 
    - 다른 터미널에서 `curl http://127.0.0.1:8000/health`를 실행해 `{"status":"ok"}`가 나오면 됩니다.
    - 폰에서 접속할 때 Mac의 내부 IP는 `ipconfig getifaddr en0`으로 확인합니다(Wi-Fi 기준).
+
+### 백엔드 문서와 도구
+
+문서
+
+| 문서 | 내용 |
+| --- | --- |
+| [`docs/api.md`](docs/api.md) | API 명세(요청·응답 형식, 업로드 순서, 녹음 파일 규격, 오류) |
+| [`docs/api-changelog.md`](docs/api-changelog.md) | API 명세 변경 기록 |
+| [`docs/openapi.json`](docs/openapi.json) | 서버 코드에서 만든 OpenAPI 문서 |
+| [`docs/metrics-spec.md`](docs/metrics-spec.md) | 지표의 정의와 서버 계산 방법 |
+| [`docs/validation.md`](docs/validation.md) | 지표 계산이 얼마나 맞는지 확인한 기록 |
+
+도구
+
+모두 `backend` 폴더에서 가상 환경을 켠 뒤 실행합니다. 옵션은 명령 뒤에 `--help`를 붙이면 볼 수 있습니다.
+
+| 명령 | 하는 일 | 읽고 쓰는 곳 |
+| --- | --- | --- |
+| `python -m tools.mock_app` | 앱처럼 사용자 등록부터 진전도 조회까지 서버에 보내 봅니다. 끝나면 만든 데이터를 지웁니다 | 서버, DB·S3(정리할 때 쓰기) |
+| `python -m tools.cleanup 목록.json` | 목록 파일에 적힌 시험용 사용자·세션·녹음을 지웁니다 | DB·S3(쓰기) |
+| `python -m tools.inspect_session --all` | 앱이 보낸 세션이 API 명세와 어긋나는 점을 찾습니다 | DB·S3(읽기만) |
+| `python -m tools.export_openapi --check` | `docs/openapi.json`이 코드와 같은지 확인합니다. `--check`를 빼면 파일을 새로 씁니다 | `docs/openapi.json` |
+| `python -m analysis.device_vs_server` | 같은 세션의 기기 값과 서버 값을 지표별로 비교한 표를 만듭니다 | DB(읽기만) |
+| `python -m analysis.agc_check --session 세션ID` | 자동 게인 조절 시험 세션의 녹음으로, 폰이 녹음 음량을 스스로 조절하는지 판정합니다 | DB·S3(읽기만) |
+| `python -m analysis.recompute --all` | 서버 지표를 지금 알고리즘 버전으로 다시 계산합니다 | DB(쓰기), S3(읽기만) |
+| `python -m analysis.aihub report 결과.jsonl` | AI Hub 구음장애 음성으로 서버 지표 계산을 점검한 결과를 표로 냅니다. 계산은 `run`으로 합니다 | 내 PC의 파일만 |
+
+- DB·S3를 쓰는 도구는 `backend/.env`에 운영 변수가 있어야 실행됩니다.
+- 지우거나 저장하는 도구(`tools.cleanup`, `analysis.recompute`)는 대상만 먼저 보여 줍니다. 확인한 뒤 `--yes`를 붙여야 실제로 지우거나 저장합니다.
+- 합성 신호와 정답값은 [`backend/fixtures/synthetic/`](backend/fixtures/synthetic/README.md)에, 자동 게인 조절 시험 소리는 [`backend/fixtures/agc/`](backend/fixtures/agc/README.md)에 있습니다. WAV는 커밋하지 않고 필요할 때 만듭니다.
