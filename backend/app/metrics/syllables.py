@@ -17,7 +17,8 @@ SILENCE_DB = -25.0
 MIN_DIP_DB = 2.0
 MIN_PAUSE_S = 0.3
 MIN_SOUNDING_S = 0.1
-# 정답 음절 수와 이만큼 이상 다르면 "읽기 오류 가능". 4단계에서 검출 음절 수 오차율을 확인할 때까지 쓰지 않는다.
+# 정답 음절 수와 이만큼 이상 다르면 "읽기 오류 가능". 이 판정은 쓰지 않는다.
+# 환자 음성의 문장·문단 읽기에서 검출 음절 수가 실제 음절 수와 이만큼 이상 어긋난 녹음이 12%였다(docs/validation.md 3.3).
 READING_ERROR_RATIO = 0.3
 
 
@@ -75,6 +76,6 @@ def possible_reading_error(detected: int, expected: int) -> bool:
     입력: detected (검출 음절 수), expected (정답 음절 수)
     출력: |D(검출 음절 수) − N(정답 음절 수)| ≥ 0.3 × N(정답 음절 수)이면 참
     알고리즘
-    1. 두 값의 차의 절댓값이 정답 음절 수의 30%(READING_ERROR_RATIO = 0.3) 이상인지 봄. 검출 음절 수 오차율을 확인할 때까지 이 판정은 쓰지 않음
+    1. 두 값의 차의 절댓값이 정답 음절 수의 30%(READING_ERROR_RATIO = 0.3) 이상인지 봄. 환자 음성에서 바르게 읽은 녹음의 12%가 걸려서 서버 계산에는 이 판정을 쓰지 않음(docs/validation.md 3.3)
     """
     return abs(detected - expected) >= READING_ERROR_RATIO * expected

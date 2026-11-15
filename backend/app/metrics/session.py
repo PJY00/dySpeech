@@ -177,7 +177,7 @@ def reading(result: SessionMetrics, sentence: RecordingInput, floor_for, calibra
     출력: 없음 (result에 articulation_rate·speech_rate(음절/초), pause_ratio(%), f0_sd_semitones·pitch_range_semitones(반음), f0_median(Hz)을 더하고 sentence_level(평가 문장 발화 음량, dBFS)을 둠. 못 구한 단계는 메모만 남김)
     알고리즘
     1. 녹음을 읽고 잡음 바닥을 정한 뒤, 발화 확률로 발화와 휴지를 나눔(find_reading). 발화가 없으면 메모를 남기고 끝냄
-    2. 정답 음절 수(서버 설정)와 검출 음절 수(count_nuclei)를 구함. 검출 음절 수는 저장만 하고, "읽기 오류 가능" 표시는 검출 음절 수 오차율을 확인할 때까지 끔
+    2. 정답 음절 수(서버 설정)와 검출 음절 수(count_nuclei)를 구함. 검출 음절 수는 저장만 함. "읽기 오류 가능" 표시는 쓰지 않음(환자 음성에서 바르게 읽은 녹음의 12%가 걸림, docs/validation.md 3.3)
     3. 말속도 지표 세 가지를 정답 음절 수로 구해 더함. 신뢰 낮음 = no_noise, 세부 정보 = total_s·pause_s(초, 소수 셋째 자리), detected_syllables, expected_syllables
     4. 발화 구간 프레임 음량의 중앙값을 sentence_level로 둠
     5. 캘리브레이션으로 탐색 범위를 정해(search_range) 기본주파수를 구하고, 발화 구간 안의 유성 프레임으로 억양을 구함. 기본주파수 프레임 시각은 frame_at으로 가장 가까운 음량 프레임에 맞춤
@@ -192,7 +192,7 @@ def reading(result: SessionMetrics, sentence: RecordingInput, floor_for, calibra
         return
     expected = EVAL_SENTENCES[sentence.sentence_id].syllables
     detected = syllables.count_nuclei(audio.samples)
-    # 검출 음절 수는 저장만 한다. "읽기 오류 가능" 표시는 4단계에서 오차율을 확인할 때까지 끈다.
+    # 검출 음절 수는 저장만 한다. "읽기 오류 가능" 표시는 쓰지 않는다(docs/validation.md 3.3).
     timing = {
         "total_s": round(found.total_s, 3),
         "pause_s": round(found.pause_s, 3),
