@@ -1,4 +1,4 @@
-import type { GameProps } from '../../app/gameTypes';
+import type { GameProps } from '../../training/gameTypes';
 import SpaceshipGame from './SpaceshipGame';
 
 const DEFAULT_F0_HZ = 150;

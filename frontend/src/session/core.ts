@@ -61,8 +61,11 @@ export interface Session {
   setBaselines(baselines: Baselines, options?: { calibration?: HzRange }): Promise<void>;
   setInputDevice(inputDevice: string): Promise<void>;
   baselines(): Baselines | null;
-  /** 끝난 시각을 고정해 저장하고 보내기를 시작한다. 오프라인이어도 바로 돌아온다 */
-  complete(options?: { clientMeta?: Record<string, unknown> }): Promise<void>;
+  /**
+   * 끝난 시각을 고정해 저장하고 보내기를 시작한다. 오프라인이어도 바로 돌아온다
+   * endedAt을 주면 그 시각을 끝난 시각으로 쓴다(지난 날 회차를 다음 날 끝낼 때 마지막 라운드가 끝난 시각). 없으면 지금
+   */
+  complete(options?: { clientMeta?: Record<string, unknown>; endedAt?: string }): Promise<void>;
   status(): SessionProgress;
   /**
    * 보내기가 끝나기를 기다린 뒤 서버 처리 상태를 간격(기본 4초)마다 확인한다(기본 3분까지)
@@ -308,7 +311,7 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
 
       async complete(options) {
         if (rec.state !== 'recording') return;
-        rec.endedAt = now().toISOString();
+        rec.endedAt = options?.endedAt ?? now().toISOString();
         rec.completeMeta = { ...(options?.clientMeta ?? {}), ...(user.dev ? { dev: true } : {}) };
         rec.state = 'queued';
         await save();

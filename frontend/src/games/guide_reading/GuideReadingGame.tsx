@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { GameProps } from '../../app/gameTypes';
+import type { GameProps } from '../../training/gameTypes';
 import { MeasurementRecorder, prepareMicrophone } from '../../measurement/recorder';
 import { discardRecordingFile, getHistory, readRecordingFile, stateStore, uuidv4 } from '../../session';
 import type { History } from '../../session';
@@ -212,7 +212,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   if (phase === 'loading') {
     return (
       <Frame>
-        <Text style={s.title}>노래방 따라 읽기</Text>
+        <Text style={s.title}>속도 맞춰 읽기</Text>
         <ActivityIndicator size="large" />
       </Frame>
     );

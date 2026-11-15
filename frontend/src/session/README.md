@@ -67,7 +67,7 @@ const p = await session.waitForResult({ onProgress: (x) => console.log(x.state),
 - 앱이 앞으로 오면 `startAutoSync`가 `syncNow()`를 부른다. 못 보낸 세션을 이어서 보내고, 서버 계산 중인 세션 상태를 갱신한다.
 - 앱을 다시 열면 `resumePending()`이 이어서 보낸다. 업로드 도중 꺼져 `sending`으로 남은 세션도 `queued`로 되돌려, 남은 녹음만 올리고 complete까지 간다.
 - `refreshStatuses()`: 서버 계산 중인 세션 상태만 다시 읽고, 보내기는 새로 시작하지 않는다. 메인 화면의 4초 갱신용이다.
-- `listSessions()`의 `lastErrorCode`, `uploaded`, `total`로 회차 카드(보내는 중 / 서버 계산 중 / 결과 나옴 / 보내지 못함)를 만든다(`src/app/labels.ts`).
+- `listSessions()`의 `lastErrorCode`, `uploaded`, `total`로 회차 카드(보내는 중 / 서버 계산 중 / 결과 나옴 / 보내지 못함)를 만든다(`src/training/labels.ts`).
 - 앱이 꺼진 동안에는 보내지 않는다. 그러려면 백그라운드 작업용 네이티브 모듈과 APK 다시 빌드가 필요하다.
 
 ## 상태와 재시도
