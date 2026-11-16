@@ -235,7 +235,7 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
         {h > 0 && (
           <>
             <View style={[s.baseline, { top: h / 2 }]} />
-            <Text style={[s.baselineLabel, { top: h / 2 + 4 }]}>편한 높이</Text>
+            <Text style={[s.baselineLabel, { top: h / 2 + 4 }]}>Comfortable pitch</Text>
             <Animated.View style={[s.abs, { left: shipX, top: 0, height: h, width: (round.duration + round.config.phraseSec) * round.config.pxPerSec, transform: [{ translateX: scrollX }] }]}>
               <Strip round={round} h={h} />
               <Stars round={round} h={h} got={starsGot} />
@@ -251,11 +251,11 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
         )}
 
         <View style={s.hud}>
-          <Pressable onPress={onExit} style={s.exitBtn} accessibilityRole="button" accessibilityLabel="게임 나가기">
-            <Text style={s.exitText}>나가기</Text>
+          <Pressable onPress={onExit} style={s.exitBtn} accessibilityRole="button" accessibilityLabel="Exit game">
+            <Text style={s.exitText}>Exit</Text>
           </Pressable>
           <View style={s.progressWrap}>
-            <Text style={s.hudSmall}>레벨 {round.config.level}</Text>
+            <Text style={s.hudSmall}>Level {round.config.level}</Text>
             <View style={s.progressTrack}>
               <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
             </View>
@@ -266,11 +266,11 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
           {cur ? (
             <>
               <Text style={s.phraseLabel}>{PATTERNS[cur.pattern].label}</Text>
-              <Text style={s.phraseHint}>{hud.combo >= 5 ? `연속 ${hud.combo}` : PATTERNS[cur.pattern].hint}</Text>
+              <Text style={s.phraseHint}>{hud.combo >= 5 ? `Streak ${hud.combo}` : PATTERNS[cur.pattern].hint}</Text>
             </>
           ) : next && countdown === null && mic.status === 'running' ? (
             <>
-              <Text style={s.phraseNext}>숨 고르기 · 다음은 {PATTERNS[next.pattern].label}</Text>
+              <Text style={s.phraseNext}>Take a breath · Next: {PATTERNS[next.pattern].label}</Text>
               <Text style={s.phraseHint}>{PATTERNS[next.pattern].hint}</Text>
             </>
           ) : null}
@@ -280,19 +280,19 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
           <View style={s.overlay} pointerEvents="none">
             <Text style={s.countdown}>{countdown}</Text>
             <Text style={s.overlayText}>
-              목소리 높이로 우주선을 움직여요.{'\n'}높은 소리는 위로, 낮은 소리는 아래로.{'\n'}처음엔 편한 높이로 길게 "아—" 해 주세요.
+              Move the ship with the pitch of your voice.{'\n'}Higher goes up, lower goes down.{'\n'}Start with a long, comfortable "ahh".
             </Text>
           </View>
         )}
         {mic.status !== 'running' && (
           <View style={s.overlay}>
             <Text style={s.overlayTitle}>
-              {mic.status === 'denied' ? '마이크 권한이 필요해요' : mic.status === 'error' ? '마이크를 켤 수 없어요' : '마이크 준비 중…'}
+              {mic.status === 'denied' ? 'Microphone access needed' : mic.status === 'error' ? 'Can\'t turn on the microphone' : 'Getting the microphone ready…'}
             </Text>
-            {mic.status === 'denied' && <Text style={s.overlayText}>설정에서 dySpeech의 마이크 권한을 허용한 뒤 다시 시작해 주세요.</Text>}
+            {mic.status === 'denied' && <Text style={s.overlayText}>Allow microphone access for dySpeech in Settings, then start again.</Text>}
             {mic.status === 'error' && <Text style={s.overlayText}>{mic.error}</Text>}
             {(mic.status === 'denied' || mic.status === 'error') && (
-              <Pressable onPress={onExit} style={s.primaryBtn}><Text style={s.primaryBtnText}>돌아가기</Text></Pressable>
+              <Pressable onPress={onExit} style={s.primaryBtn}><Text style={s.primaryBtnText}>Go back</Text></Pressable>
             )}
           </View>
         )}
@@ -303,7 +303,7 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
           <View style={[s.meterFill, { width: `${hud.meter * 100}%`, backgroundColor: hud.loud ? C.ship : C.dim }]} />
           <View style={[s.meterMark, { left: `${thresholdMark * 100}%` }]} />
         </View>
-        <Text style={s.footerText}>{hud.voiceText ? `목소리 ${hud.voiceText}` : '소리를 내면 우주선이 움직여요'}</Text>
+        <Text style={s.footerText}>{hud.voiceText ? `Voice ${hud.voiceText}` : 'Make a sound to move the ship'}</Text>
       </View>
     </View>
   );
@@ -311,7 +311,7 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
 
 function fmtSt(st: number): string {
   const v = Math.round(st * 10) / 10;
-  return `${v > 0 ? '+' : ''}${v.toFixed(1)} 반음`;
+  return `${v > 0 ? '+' : ''}${v.toFixed(1)} semitones`;
 }
 
 const s = StyleSheet.create({
