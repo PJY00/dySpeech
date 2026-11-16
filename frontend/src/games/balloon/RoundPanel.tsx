@@ -39,9 +39,9 @@ export function NoticeFrame({ title, phase, error, onExit }: { title: string; ph
       <View style={s.center}>
         <Text style={s.title}>{title}</Text>
         <Text style={s.note}>
-          {phase === 'denied' ? '마이크 권한이 필요해요. 설정에서 마이크를 허용해 주세요.' : `마이크를 쓰지 못했어요. ${error ?? ''}`}
+          {phase === 'denied' ? 'Microphone permission is needed. Please allow the microphone in Settings.' : `Could not use the microphone. ${error ?? ''}`}
         </Text>
-        <Button label="나가기" onPress={onExit} />
+        <Button label="Exit" onPress={onExit} />
       </View>
     );
   }
@@ -54,19 +54,19 @@ const sign = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(1)}`;
 export function ResultPanel({ run, target, onContinue }: { run: BalloonGameRun; target: BalloonTarget; onContinue: () => void }) {
   const r = run.result;
   const title =
-    run.decision === 'deferred' ? '소리가 잘 안 들렸어요. 한 번 더 해 볼까요?' : r.passed ? '목표를 채웠어요! 🎉' : '수고했어요!';
+    run.decision === 'deferred' ? "We couldn't hear you well. Want to try once more?" : r.passed ? 'You reached the goal! 🎉' : 'Great effort!';
   return (
     <View style={s.panel}>
       <Text style={s.panelTitle}>{title}</Text>
-      <Row label="목표" value={`기준보다 +${target.deltaDb}dB 이상을 ${target.holdSeconds}초 유지`} />
-      <Row label="가장 오래 유지" value={`${r.best_hold_s}초`} />
+      <Row label="Goal" value={`At least +${target.deltaDb} dB above your baseline for ${target.holdSeconds} s`} />
+      <Row label="Longest hold" value={`${r.best_hold_s} s`} />
       <Row
-        label="소리 낸 구간(기준 대비)"
-        value={r.mean_diff_db === null || r.median_diff_db === null ? '소리가 감지되지 않았어요' : `평균 ${sign(r.mean_diff_db)}dB · 중앙값 ${sign(r.median_diff_db)}dB`}
+        label="While you were making sound (vs. baseline)"
+        value={r.mean_diff_db === null || r.median_diff_db === null ? 'No sound detected' : `Average ${sign(r.mean_diff_db)} dB · Median ${sign(r.median_diff_db)} dB`}
       />
-      <Row label="목표 이상 유지한 비율" value={`${Math.round(r.above_target_pct)}%`} />
+      <Row label="Time above the goal" value={`${Math.round(r.above_target_pct)}%`} />
       {run.decision_reason ? <Text style={s.note}>{run.decision_reason}</Text> : null}
-      <Button label="계속" onPress={onContinue} />
+      <Button label="Continue" onPress={onContinue} />
     </View>
   );
 }

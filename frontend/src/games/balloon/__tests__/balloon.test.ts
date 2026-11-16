@@ -252,19 +252,19 @@ test('유지 시간은 최대발성지속시간이 길수록 같거나 길다', 
 
 test('단계 라벨: 이 단계의 목표와 이전 단계와 달라진 점을 보여 준다', () => {
   const first = levelLabel(1, 10);
-  assert.equal(first.goal, '기준 +6dB · 1.5초 유지');
+  assert.equal(first.goal, 'Baseline +6 dB · hold 1.5 s');
   assert.equal(first.change, null, '1단계는 비교할 이전 단계가 없다');
 
   // 2단계: 시간만 늘고 음량은 같다
-  assert.equal(levelLabel(2, 10).goal, '기준 +6dB · 1.9초 유지');
-  assert.equal(levelLabel(2, 10).change, '지난 단계보다 유지 시간 +0.4초');
+  assert.equal(levelLabel(2, 10).goal, 'Baseline +6 dB · hold 1.9 s');
+  assert.equal(levelLabel(2, 10).change, 'Up from the last level: hold +0.4 s');
   // 3단계: 시간과 음량이 같이 오른다
-  assert.equal(levelLabel(3, 10).change, '지난 단계보다 유지 시간 +0.4초, 음량 +1dB');
+  assert.equal(levelLabel(3, 10).change, 'Up from the last level: hold +0.4 s, volume +1 dB');
 
   // 어느 단계든 이전보다 시간이 늘어난다고 알려 준다
   for (const mpt of [3, 6, 10, 20]) {
     for (const lv of LEVELS.slice(1)) {
-      assert.match(levelLabel(lv, mpt).change ?? '', /유지 시간 \+\d/, `MPT ${mpt}초 단계 ${lv}`);
+      assert.match(levelLabel(lv, mpt).change ?? '', /hold \+\d/, `MPT ${mpt}초 단계 ${lv}`);
     }
   }
 });

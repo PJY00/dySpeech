@@ -56,15 +56,15 @@ export interface LevelLabel {
 /** 단계마다 무엇이 달라지는지 화면에 보여 줄 문구 */
 export function levelLabel(level: number, maxPhonationTimeS?: number | null): LevelLabel {
   const cur = getLevel(level, maxPhonationTimeS);
-  const goal = `기준 +${cur.deltaDb}dB · ${cur.holdSeconds}초 유지`;
+  const goal = `Baseline +${cur.deltaDb} dB · hold ${cur.holdSeconds} s`;
   if (cur.level <= 1) return { goal, change: null };
   const prev = getLevel(cur.level - 1, maxPhonationTimeS);
   const parts: string[] = [];
   const dHold = Math.round((cur.holdSeconds - prev.holdSeconds) * 10) / 10;
-  if (dHold > 0) parts.push(`유지 시간 +${dHold}초`);
+  if (dHold > 0) parts.push(`hold +${dHold} s`);
   const dDb = cur.deltaDb - prev.deltaDb;
-  if (dDb > 0) parts.push(`음량 +${dDb}dB`);
-  return { goal, change: parts.length ? `지난 단계보다 ${parts.join(', ')}` : null };
+  if (dDb > 0) parts.push(`volume +${dDb} dB`);
+  return { goal, change: parts.length ? `Up from the last level: ${parts.join(', ')}` : null };
 }
 
 export const ROUND_SECONDS = 15;
@@ -208,15 +208,15 @@ export function summarizeRound(state: BalloonState, level: number, target: Ballo
     return {
       ...base,
       decision: 'deferred',
-      reason: '소리가 잘 안 들려서 이번에는 세지 않았어요',
+      reason: "We couldn't hear you well, so this one wasn't counted",
     };
   }
   if (!state.passed) {
-    return { ...base, decision: 'hold', reason: '이번 단계를 한 번 더 해 봐요' };
+    return { ...base, decision: 'hold', reason: 'Try this level once more' };
   }
   return level < MAX_LEVEL
-    ? { ...base, decision: 'up', reason: '목표를 채워서 다음 단계로 가요' }
-    : { ...base, decision: 'hold', reason: '목표를 채웠어요. 가장 높은 단계예요' };
+    ? { ...base, decision: 'up', reason: 'Goal reached - moving up a level' }
+    : { ...base, decision: 'hold', reason: 'Goal reached. This is the highest level' };
 }
 
 /** 소리 낸 프레임들의 기준 대비 dB 차이 → 평균과 중앙값. 값이 없으면 null */
