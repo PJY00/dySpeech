@@ -9,7 +9,7 @@ import type { BalloonGameProps } from './gameProps';
 import { Button, common, LevelBadge, NoticeFrame, ResultPanel } from './RoundPanel';
 import { ENDING_MS, useBalloonRound } from './useBalloonRound';
 
-const TITLE = '풍선 불기';
+const TITLE = 'Blow Up the Balloon';
 const BALLOON_MIN_SCALE = 0.3;
 const BALLOON_MAX_SCALE = 1.6;
 const BALLOON_BASE_SIZE = 160;
@@ -36,13 +36,13 @@ export function BalloonGameScreen(props: BalloonGameProps) {
 
   const notice = NoticeFrame({ title: TITLE, phase, error: round.error, onExit: round.exit });
   if (notice) return notice;
-  const rule = `기준보다 +${target.deltaDb}dB 이상으로 ${target.holdSeconds}초 동안 유지하세요.`;
+  const rule = `Keep your voice at least +${target.deltaDb} dB above your baseline for ${target.holdSeconds} s.`;
 
   return (
     <View style={common.container}>
       <Text style={common.title}>{TITLE}</Text>
       <Text style={common.level}>
-        단계 {props.level} / {MAX_LEVEL} · {props.roundIndex}번째 연습
+        Level {props.level} / {MAX_LEVEL} · Practice #{props.roundIndex}
       </Text>
       <LevelBadge level={props.level} maxPhonationTimeS={props.baselines.maxPhonationTimeS} />
 
@@ -51,9 +51,9 @@ export function BalloonGameScreen(props: BalloonGameProps) {
       ) : (
         <>
           <Text style={common.guide}>
-            {phase === 'ready' && `"아~" 소리를 내 보세요. ${rule}`}
+            {phase === 'ready' && `Say "ahh" out loud. ${rule}`}
             {phase === 'playing' && rule}
-            {phase === 'ending' && (state.passed ? '목표를 채웠어요! 🎉' : '수고했어요! 👏')}
+            {phase === 'ending' && (state.passed ? 'You reached the goal! 🎉' : 'Great effort! 👏')}
           </Text>
 
           <View style={s.balloonArea}>
@@ -63,19 +63,19 @@ export function BalloonGameScreen(props: BalloonGameProps) {
           {phase === 'playing' && (
             <View>
               <Text style={common.info}>
-                현재 차이 {round.dbDiff >= 0 ? '+' : ''}
+                Vs. baseline: {round.dbDiff >= 0 ? '+' : ''}
                 {round.dbDiff.toFixed(1)} dB
               </Text>
               <Text style={common.info}>
-                유지 {state.holdTime.toFixed(1)} / {target.holdSeconds}초 · 남은 시간 {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)}초
+                Held {state.holdTime.toFixed(1)} / {target.holdSeconds} s · {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)} s left
               </Text>
             </View>
           )}
 
           {phase !== 'ending' && (
             <View style={common.buttons}>
-              {phase === 'ready' && <Button label="시작" onPress={round.start} />}
-              <Button label="나가기" onPress={round.exit} light />
+              {phase === 'ready' && <Button label="Start" onPress={round.start} />}
+              <Button label="Exit" onPress={round.exit} light />
             </View>
           )}
         </>

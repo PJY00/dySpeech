@@ -10,7 +10,7 @@ import type { BalloonGameProps } from './gameProps';
 import { Button, common, LevelBadge, NoticeFrame, ResultPanel } from './RoundPanel';
 import { useBalloonRound } from './useBalloonRound';
 
-const TITLE = '촛불 지키기';
+const TITLE = 'Keep the Candle Lit';
 const FLAME_WIDTH = 70;
 const FLAME_HEIGHT = 130;
 
@@ -24,13 +24,13 @@ export function CandleGameScreen(props: BalloonGameProps) {
   // 불의 세기는 풍선의 크기와 같은 값이다(가득 1 → 꺼짐 0)
   const heat = state.size;
   const lit = heat > FLAME_OUT_BELOW;
-  const rule = `기준보다 +${target.deltaDb}dB 이상으로 ${target.holdSeconds}초 동안 이어서 내 주세요.`;
+  const rule = `Keep your voice at least +${target.deltaDb} dB above your baseline for ${target.holdSeconds} s.`;
 
   return (
     <View style={common.container}>
       <Text style={common.title}>{TITLE}</Text>
       <Text style={common.level}>
-        단계 {props.level} / {MAX_LEVEL} · {props.roundIndex}번째 연습
+        Level {props.level} / {MAX_LEVEL} · Practice #{props.roundIndex}
       </Text>
       <LevelBadge level={props.level} maxPhonationTimeS={props.baselines.maxPhonationTimeS} />
 
@@ -38,9 +38,9 @@ export function CandleGameScreen(props: BalloonGameProps) {
         <ResultPanel run={lastRun} target={target} onContinue={round.confirm} />
       ) : (
         <Text style={common.guide}>
-          {phase === 'ready' && `"아~" 소리를 이어서 내서 촛불이 꺼지지 않게 지켜 주세요. ${rule}`}
-          {phase === 'playing' && `촛불을 지켜 주세요. ${rule}`}
-          {phase === 'ending' && (state.passed ? '목표를 채웠어요! 🎉' : '수고했어요! 👏')}
+          {phase === 'ready' && `Say "ahh" and keep going so the candle doesn't go out. ${rule}`}
+          {phase === 'playing' && `Keep the candle lit. ${rule}`}
+          {phase === 'ending' && (state.passed ? 'You reached the goal! 🎉' : 'Great effort! 👏')}
         </Text>
       )}
 
@@ -72,20 +72,20 @@ export function CandleGameScreen(props: BalloonGameProps) {
       {phase === 'playing' && (
         <View>
           <Text style={common.info}>
-            현재 차이 {round.dbDiff >= 0 ? '+' : ''}
+            Vs. baseline: {round.dbDiff >= 0 ? '+' : ''}
             {round.dbDiff.toFixed(1)} dB
           </Text>
           <Text style={common.info}>
-            유지 {state.holdTime.toFixed(1)} / {target.holdSeconds}초 · 남은 시간 {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)}초
+            Held {state.holdTime.toFixed(1)} / {target.holdSeconds} s · {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)} s left
           </Text>
-          {lit && <Text style={common.info}>불꽃 온도 약 {flameKelvin(heat)}K</Text>}
+          {lit && <Text style={common.info}>Flame temperature ≈ {flameKelvin(heat)} K</Text>}
         </View>
       )}
 
       {phase !== 'finished' && phase !== 'ending' && (
         <View style={common.buttons}>
-          {phase === 'ready' && <Button label="시작" onPress={round.start} />}
-          <Button label="나가기" onPress={round.exit} light />
+          {phase === 'ready' && <Button label="Start" onPress={round.start} />}
+          <Button label="Exit" onPress={round.exit} light />
         </View>
       )}
     </View>
