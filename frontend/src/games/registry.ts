@@ -13,7 +13,7 @@ export const GAMES: readonly GameEntry[] = [
   { game: 'balloon', area: 'breath', title: 'Blow Up the Balloon', description: 'Make sound to inflate the balloon', maxLevel: BREATH_MAX_LEVEL, component: BalloonGameScreen },
   { game: 'candle', area: 'breath', title: 'Keep the Candle Lit', description: 'Keep making sound to keep the candle burning', maxLevel: BREATH_MAX_LEVEL, component: CandleGameScreen },
   { game: 'guide_reading', area: 'rate', title: '속도 맞춰 읽기', description: '파란 안내를 따라 같은 빠르기로 읽어요', maxLevel: GUIDE_READING_MAX_LEVEL, component: GuideReadingGame },
-  { game: 'spaceship', area: 'intonation', title: '우주선 게임', description: '목소리 높낮이로 우주선을 움직여 길을 따라가요', maxLevel: SPACESHIP_MAX_LEVEL, component: SpaceshipRound },
+  { game: 'spaceship', area: 'intonation', title: 'Spaceship', description: 'Move the ship with your voice pitch and follow the path', maxLevel: SPACESHIP_MAX_LEVEL, component: SpaceshipRound },
 ];
 
 export function gamesInArea(area: GameArea): GameEntry[] {

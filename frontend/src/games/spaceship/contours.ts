@@ -3,12 +3,12 @@ export type PatternId = 'level' | 'rise' | 'fall' | 'riseFall' | 'fallRise' | 's
 type Key = readonly [u: number, v: number];
 
 export const PATTERNS: Record<PatternId, { label: string; hint: string; keys: readonly Key[] }> = {
-  level: { label: '평평하게', hint: '편한 높이로 길게 "아—"', keys: [[0, 0], [1, 0]] },
-  rise: { label: '올리기 ↗', hint: '물어볼 때처럼 끝을 올려요', keys: [[0, -0.3], [0.35, -0.3], [1, 0.7]] },
-  fall: { label: '내리기 ↘', hint: '말을 마칠 때처럼 끝을 내려요', keys: [[0, 0.5], [0.35, 0.5], [1, -0.5]] },
-  riseFall: { label: '올렸다 내리기', hint: '가운데를 높게', keys: [[0, -0.3], [0.5, 0.7], [1, -0.3]] },
-  fallRise: { label: '내렸다 올리기', hint: '가운데를 낮게', keys: [[0, 0.5], [0.5, -0.5], [1, 0.5]] },
-  stepUp: { label: '한 계단 올리기', hint: '중간에 한 번 높여요', keys: [[0, -0.3], [0.4, -0.3], [0.6, 0.7], [1, 0.7]] },
+  level: { label: 'Steady', hint: 'Hold a long, comfortable "ahh"', keys: [[0, 0], [1, 0]] },
+  rise: { label: 'Rise ↗', hint: 'Go up at the end, like a question', keys: [[0, -0.3], [0.35, -0.3], [1, 0.7]] },
+  fall: { label: 'Fall ↘', hint: 'Go down at the end, like finishing a sentence', keys: [[0, 0.5], [0.35, 0.5], [1, -0.5]] },
+  riseFall: { label: 'Up, then down', hint: 'Go high in the middle', keys: [[0, -0.3], [0.5, 0.7], [1, -0.3]] },
+  fallRise: { label: 'Down, then up', hint: 'Go low in the middle', keys: [[0, 0.5], [0.5, -0.5], [1, 0.5]] },
+  stepUp: { label: 'Step up', hint: 'Jump up once halfway', keys: [[0, -0.3], [0.4, -0.3], [0.6, 0.7], [1, 0.7]] },
 };
 
 export function patternValue(id: PatternId, u: number): number {

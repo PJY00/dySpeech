@@ -110,18 +110,18 @@ export function computeGameRun(
   const level = round.config.level;
   if (coverage < MIN_COVERAGE) {
     decision = 'deferred';
-    reason = `소리 낸 구간 ${Math.round(coverage * 100)}%로 50% 미만이라 판정 보류`;
+    reason = `Voice heard ${Math.round(coverage * 100)}% of the time (under 50%), so no decision`;
   } else if (passed && onLane >= UP_LANE_RATIO && level < MAX_LEVEL) {
     decision = 'up';
-    reason = `통과, 길 안 ${Math.round(onLane * 100)}%로 70% 이상`;
+    reason = `Passed, ${Math.round(onLane * 100)}% in the lane (70% or more)`;
   } else if (!passed && onLane < DOWN_LANE_RATIO && level > 1) {
     decision = 'down';
-    reason = `미통과, 길 안 ${Math.round(onLane * 100)}%로 35% 미만`;
+    reason = `Not passed, ${Math.round(onLane * 100)}% in the lane (under 35%)`;
   } else {
     decision = 'hold';
     reason = passed
-      ? level >= MAX_LEVEL ? '통과, 최고 단계' : `통과, 길 안 ${Math.round(onLane * 100)}%로 70% 미만`
-      : level <= 1 ? '미통과, 최저 단계' : `미통과, 길 안 ${Math.round(onLane * 100)}%`;
+      ? level >= MAX_LEVEL ? 'Passed, at the top level' : `Passed, ${Math.round(onLane * 100)}% in the lane (under 70%)`
+      : level <= 1 ? 'Not passed, at the first level' : `Not passed, ${Math.round(onLane * 100)}% in the lane`;
   }
 
   return {
