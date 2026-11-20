@@ -182,3 +182,62 @@ test('업로드 도중 앱이 꺼진 회차(강제 종료)가 다음 실행에�
   assert.equal(reopened.status().state, 'done');
   assert.equal(store.files.size, 0);
 });
+
+// 서버가 멈춘 동안 Railway가 모든 API 요청에 돌려준 응답(우리 오류 형식이 아님, 이슈 #37)
+const RAILWAY_404 = { kind: 'status' as const, status: 404, body: { status: 'error', code: 404, message: 'Application not found', request_id: 'r' } };
+const API = /^http:\/\/api\.fake\//;
+function outage(server: FakeServer) {
+  for (const method of ['PUT', 'POST', 'GET']) server.fail(method, API, 1000, RAILWAY_404);
+}
+type Doc = { state: string; lastError: { code: string; message: string; at: string } | null };
+const docOf = async (store: MemoryStore, id: string) => (await store.readJson(`sessions/${id}.json`)) as Doc;
+
+test('서버가 멈춘 동안(Railway 404) 끝낸 회차는 막히지 않고 queued로 남고, 서버가 돌아오면 다음 실행에서 보낸다(이슈 #37)', async () => {
+  const store = new MemoryStore();
+  const server = new FakeServer();
+  outage(server);
+  const first = makeModule(store, server);
+  const s = await measured(first, store);
+  await s.complete();
+  await until(async () => {
+    const doc = await docOf(store, s.id);
+    return doc.state === 'queued' && doc.lastError?.code === 'HTTP_404';
+  }, '다시 보내도 404면 blocked가 아니라 queued로 둠');
+  assert.equal(server.sessions.size, 0, '서버에는 아무것도 닿지 않음');
+
+  server.heal();
+  const next = makeModule(store, server);
+  const { resumed } = await next.resumePending();
+  assert.equal(resumed, 1);
+  await next.syncNow();
+  const reopened = (await next.openSession(s.id)) as Session;
+  assert.equal(reopened.status().state, 'processing');
+  assert.equal(server.sessions.get(s.id)?.completeCalls, 1);
+});
+
+test('예전 앱이 Railway 404로 막아 둔(blocked) 회차는 앱을 켤 때 다시 보내고, 다른 이유로 막힌 회차는 그대로 둔다(이슈 #37)', async () => {
+  const store = new MemoryStore();
+  const server = new FakeServer();
+  outage(server);
+  const first = makeModule(store, server);
+  const lost = await measured(first, store);
+  await lost.complete();
+  const conflict = await measured(first, store);
+  await conflict.complete();
+  await until(async () => (await docOf(store, lost.id)).state === 'queued' && (await docOf(store, conflict.id)).state === 'queued', '둘 다 보내기 실패');
+  // 예전 앱(1.0.0)이 남긴 상태로 바꿔 둔다: 같은 404를 blocked로 저장했다. 다른 하나는 ID 충돌로 막힌 회차
+  for (const [s, code] of [[lost, 'HTTP_404'], [conflict, 'ID_CONFLICT']] as const) {
+    const doc = await docOf(store, s.id);
+    await store.writeJson(`sessions/${s.id}.json`, { ...doc, state: 'blocked', lastError: { ...doc.lastError, code } });
+  }
+
+  server.heal();
+  const next = makeModule(store, server);
+  const { resumed } = await next.resumePending();
+  assert.equal(resumed, 1, 'HTTP_404로 막힌 회차만 다시 보냄');
+  await next.syncNow();
+  assert.equal(((await next.openSession(lost.id)) as Session).status().state, 'processing');
+  assert.equal(server.sessions.get(lost.id)?.completeCalls, 1);
+  assert.equal((await docOf(store, conflict.id)).state, 'blocked', 'ID 충돌은 다시 보내도 같으므로 그대로');
+  assert.equal(server.sessions.has(conflict.id), false);
+});

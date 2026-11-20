@@ -62,6 +62,11 @@ export class FakeServer {
     this.rules.push({ method, pattern, times, fault, skip });
   }
 
+  /** 끼워 넣은 오류를 모두 없앤다(서버가 돌아온 것처럼) */
+  heal(): void {
+    this.rules.length = 0;
+  }
+
   /** 서버 계산이 끝난 것처럼 상태를 바꾼다 */
   finish(sessionId: string, status: 'done' | 'failed'): void {
     const s = this.sessions.get(sessionId);

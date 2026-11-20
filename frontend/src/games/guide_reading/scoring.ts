@@ -112,27 +112,36 @@ export function judgeSentence(id: string, syllables: number, m: SentenceMeasure,
   };
 }
 
+/** 문장 판정 문구(화면). 화면 문구는 영어다(훈련 문장만 한국어, sentences.ts) */
 export const REASON_TEXT: Record<NonNullable<SentenceResult['reason']>, string> = {
-  fast: '조금 빨랐어요. 안내 막대에 맞춰 천천히 읽어 보세요.',
-  slow: '조금 느렸어요. 안내 막대를 따라가 보세요.',
-  uneven: '빠르기가 고르지 않았어요. 한 글자씩 같은 박자로 읽어 보세요.',
-  no_speech: '목소리가 잘 들리지 않았어요.',
-  incomplete: '끝까지 읽지 못한 것 같아요.',
+  fast: 'A little fast. Slow down and follow the guide bar.',
+  slow: 'A little slow. Try to keep up with the guide bar.',
+  uneven: 'The pace was uneven. Read each syllable on the same beat.',
+  no_speech: "We couldn't hear your voice well.",
+  incomplete: "Looks like you didn't finish the sentence.",
 };
 
-/** 판정한 문장(judged)만으로 성공률을 낸다. 판정한 문장이 3개 미만이면 deferred */
+/** 개수와 영어 단수·복수 낱말. 예: 1 sentence, 2 sentences */
+const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** 판정한 문장(judged)만으로 성공률을 낸다. 판정한 문장이 3개 미만이면 deferred. 판정 이유(decision_reason)는 영어 */
 export function roundDecision(results: SentenceResult[]): { successRatePct: number; decision: Decision; reason: string } {
   const judged = results.filter((r) => r.judged);
   const passed = judged.filter((r) => r.passed).length;
   const pct = judged.length ? (passed / judged.length) * 100 : 0;
   const skipped = results.length - judged.length;
-  const note = skipped ? `, 끝까지 읽지 못한 시도 ${skipped}개 제외` : '';
+  const note = skipped ? `, excluding ${count(skipped, 'unfinished attempt')}` : '';
   if (judged.length < MIN_JUDGED_SENTENCES) {
-    return { successRatePct: pct, decision: 'deferred', reason: `판정한 문장 ${judged.length}개로 3개 미만이라 판정 보류${note}` };
+    return {
+      successRatePct: pct,
+      decision: 'deferred',
+      reason: `Only ${count(judged.length, 'sentence')} judged (under ${MIN_JUDGED_SENTENCES}), so no decision${note}`,
+    };
   }
-  if (pct >= UP_AT_PCT) return { successRatePct: pct, decision: 'up', reason: `통과 ${passed}/${judged.length}, 성공률 80% 이상${note}` };
-  if (pct <= DOWN_AT_PCT) return { successRatePct: pct, decision: 'down', reason: `통과 ${passed}/${judged.length}, 성공률 40% 이하${note}` };
-  return { successRatePct: pct, decision: 'hold', reason: `통과 ${passed}/${judged.length}, 성공률 40% 초과 80% 미만${note}` };
+  const score = `Passed ${passed}/${judged.length}`;
+  if (pct >= UP_AT_PCT) return { successRatePct: pct, decision: 'up', reason: `${score}, success rate ${UP_AT_PCT}% or more${note}` };
+  if (pct <= DOWN_AT_PCT) return { successRatePct: pct, decision: 'down', reason: `${score}, success rate ${DOWN_AT_PCT}% or less${note}` };
+  return { successRatePct: pct, decision: 'hold', reason: `${score}, success rate between ${DOWN_AT_PCT}% and ${UP_AT_PCT}%${note}` };
 }
 
 export interface RoundContext {

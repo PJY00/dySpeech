@@ -12,7 +12,7 @@ export type { GameArea, GameBaselines, GameEntry, GameName, GameProps, RoundReco
 export const GAMES: readonly GameEntry[] = [
   { game: 'balloon', area: 'breath', title: 'Blow Up the Balloon', description: 'Make sound to inflate the balloon', maxLevel: BREATH_MAX_LEVEL, component: BalloonGameScreen },
   { game: 'candle', area: 'breath', title: 'Keep the Candle Lit', description: 'Keep making sound to keep the candle burning', maxLevel: BREATH_MAX_LEVEL, component: CandleGameScreen },
-  { game: 'guide_reading', area: 'rate', title: '속도 맞춰 읽기', description: '파란 안내를 따라 같은 빠르기로 읽어요', maxLevel: GUIDE_READING_MAX_LEVEL, component: GuideReadingGame },
+  { game: 'guide_reading', area: 'rate', title: 'Pace Reading', description: 'Follow the blue guide and read at the same pace', maxLevel: GUIDE_READING_MAX_LEVEL, component: GuideReadingGame },
   { game: 'spaceship', area: 'intonation', title: 'Spaceship', description: 'Move the ship with your voice pitch and follow the path', maxLevel: SPACESHIP_MAX_LEVEL, component: SpaceshipRound },
 ];
 
