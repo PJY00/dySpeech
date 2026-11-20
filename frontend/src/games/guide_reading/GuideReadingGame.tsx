@@ -212,7 +212,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   if (phase === 'loading') {
     return (
       <Frame>
-        <Text style={s.title}>속도 맞춰 읽기</Text>
+        <Text style={s.title}>Pace Reading</Text>
         <ActivityIndicator size="large" />
       </Frame>
     );
@@ -220,9 +220,9 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   if (phase === 'denied' || phase === 'error') {
     return (
       <Frame>
-        <Text style={s.title}>시작하지 못했어요</Text>
-        <Text style={s.warn}>{phase === 'denied' ? '마이크 권한이 필요해요.' : error}</Text>
-        <Button label="나가기" onPress={() => void exit()} />
+        <Text style={s.title}>Couldn't start</Text>
+        <Text style={s.warn}>{phase === 'denied' ? 'Microphone access needed.' : error}</Text>
+        <Button label="Exit" onPress={() => void exit()} />
       </Frame>
     );
   }
@@ -231,12 +231,12 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   return (
     <Frame>
       <Text style={s.progressLabel}>
-        문장 {index + 1} / {sentences.length} · 단계 {level}
+        Sentence {index + 1} / {sentences.length} · Level {level}
       </Text>
-      <Text style={s.title}>안내를 따라 읽어요</Text>
+      <Text style={s.title}>Read along with the guide</Text>
       {target && (
         <Text style={s.note}>
-          파란 글자가 지나가는 빠르기({target.guideRate.toFixed(1)}음절/초)에 맞춰, 같은 박자로 읽어 주세요.
+          Read at the pace of the blue letters ({target.guideRate.toFixed(1)} syllables/s), keeping an even beat.
         </Text>
       )}
 
@@ -245,28 +245,28 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
 
       {phase === 'ready' && (
         <>
-          <Button label="시작" onPress={() => void start()} />
-          <Button label="나가기" kind="secondary" onPress={() => void exit()} />
+          <Button label="Start" onPress={() => void start()} />
+          <Button label="Exit" kind="secondary" onPress={() => void exit()} />
         </>
       )}
-      {phase === 'reading' && <Text style={s.body}>{progress < 0.5 ? '준비… 파란 글자가 움직이면 읽어 주세요' : '읽는 중이에요'}</Text>}
+      {phase === 'reading' && <Text style={s.body}>{progress < 0.5 ? 'Get ready… start reading when the blue letters move' : 'Reading…'}</Text>}
       {phase === 'analyzing' && <ActivityIndicator size="large" />}
       {phase === 'feedback' && last && target && !last.judged && (
         <>
           <Text style={s.warn}>{REASON_TEXT.incomplete}</Text>
-          <Button label="다시 읽기" onPress={retry} />
-          <Button label={index + 1 < sentences.length ? '다음 문장' : '라운드 끝'} kind="secondary" onPress={next} />
+          <Button label="Read again" onPress={retry} />
+          <Button label={index + 1 < sentences.length ? 'Next sentence' : 'Finish round'} kind="secondary" onPress={next} />
         </>
       )}
       {phase === 'feedback' && last && target && last.judged && (
         <>
           <Text style={last.passed ? s.ok : s.warn}>
-            {last.passed ? (last.rhythm_checked ? '잘했어요!' : '잘했어요! (박자는 확인하지 못했어요)') : REASON_TEXT[last.reason ?? 'no_speech']}
+            {last.passed ? (last.rhythm_checked ? 'Well done!' : 'Well done! (rhythm not checked)') : REASON_TEXT[last.reason ?? 'no_speech']}
           </Text>
           <Text style={s.body}>
-            빠르기 {last.articulation_rate === null ? '-' : last.articulation_rate.toFixed(1)}음절/초 (목표 {target.min.toFixed(1)}~{target.max.toFixed(1)})
+            Pace {last.articulation_rate === null ? '-' : last.articulation_rate.toFixed(1)} syllables/s (target {target.min.toFixed(1)}–{target.max.toFixed(1)})
           </Text>
-          <Button label={index + 1 < sentences.length ? '다음 문장' : '라운드 끝'} onPress={next} />
+          <Button label={index + 1 < sentences.length ? 'Next sentence' : 'Finish round'} onPress={next} />
         </>
       )}
     </Frame>

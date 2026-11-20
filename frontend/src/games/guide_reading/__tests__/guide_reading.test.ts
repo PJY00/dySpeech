@@ -17,7 +17,7 @@ import { END_PROGRESS_RATIO, fillsProgress, LATE_END_SILENCE_S, SentenceEnd } fr
 import { LiveReader } from '../live';
 import { detectNuclei, intervalCv } from '../nuclei';
 import { DEFAULT_DETECTION_RATIO, loadReadingState, recordDetection, shouldRebaseline, STATE_DOC } from '../reference';
-import { buildGameRun, DEFAULT_REFERENCE_RATE, judgeSentence, LEVEL_SPECS, MIN_JUDGED_SENTENCES, roundDecision, targetFor } from '../scoring';
+import { buildGameRun, DEFAULT_REFERENCE_RATE, judgeSentence, LEVEL_SPECS, MIN_JUDGED_SENTENCES, REASON_TEXT, roundDecision, targetFor } from '../scoring';
 import type { SentenceResult } from '../scoring';
 import { hangulSyllables, roundSentences, TRAINING_SENTENCES } from '../sentences';
 
@@ -315,14 +315,14 @@ test('끝까지 읽지 못한 문장: 말속도로 판정하지 않고 성공률
   // 판정 3개(모두 통과) + 끝까지 못 읽은 시도 2개 → 3/3 = 100% up
   const three = roundDecision([ok('g01'), cut('g02', 'after_guide'), ok('g02'), ok('g03'), cut('g04', 'max')]);
   assert.deepEqual([three.decision, three.successRatePct], ['up', 100]);
-  assert.match(three.reason, /끝까지 읽지 못한 시도 2개 제외/);
+  assert.match(three.reason, /excluding 2 unfinished attempts/);
   // 판정 3개 중 1개 통과 → 33% down
   assert.equal(roundDecision([ok('g01'), bad('g02'), bad('g03'), cut('g04', 'max')]).decision, 'down');
   // 판정 2개뿐 → deferred
   assert.equal(MIN_JUDGED_SENTENCES, 3);
   const two = roundDecision([ok('g01'), ok('g02'), cut('g03', 'after_guide'), cut('g04', 'after_guide'), cut('g05', 'max')]);
   assert.equal(two.decision, 'deferred');
-  assert.match(two.reason, /3개 미만/);
+  assert.match(two.reason, /Only 2 sentences judged \(under 3\)/);
 });
 
 test('다시 읽기: 결과에는 시도마다 남고, params.sentence_ids는 라운드의 문장 5개 그대로', () => {
@@ -337,4 +337,26 @@ test('다시 읽기: 결과에는 시도마다 남고, params.sentence_ids는 �
   assert.equal((run.result as { sentences: unknown[] }).sentences.length, 6);
   assert.equal(run.success_rate_pct, 100);
   assert.deepEqual([fillsProgress('progress'), fillsProgress('max'), fillsProgress(null)], [true, false, false]);
+});
+
+test('화면 문구: 문장 판정 문구와 라운드 판정 이유는 영어다(한글 없음, 훈련 문장만 한국어)', () => {
+  const hangul = /[\u3131-\u318e\uac00-\ud7a3]/;
+  for (const [key, text] of Object.entries(REASON_TEXT)) assert.doesNotMatch(text, hangul, key);
+  const t = targetFor(4, 1);
+  const ok = (id: string) => judgeSentence(id, 11, { rate: 4, speechS: 2.7, cv: 0.3, detected: 9 }, t);
+  const bad = (id: string) => judgeSentence(id, 11, { rate: 9, speechS: 1.2, cv: 0.3, detected: 9 }, t);
+  const cut = (id: string) => judgeSentence(id, 11, { rate: 4, speechS: 2, cv: 0.3, detected: 9 }, t, 'max');
+  const rounds = {
+    up: [ok('g01'), ok('g02'), ok('g03'), ok('g04'), ok('g05')],
+    hold: [ok('g01'), ok('g02'), ok('g03'), bad('g04'), bad('g05')],
+    down: [ok('g01'), bad('g02'), bad('g03'), bad('g04'), bad('g05')],
+    deferred: [ok('g01'), cut('g02')],
+  };
+  for (const [decision, results] of Object.entries(rounds)) {
+    const d = roundDecision(results);
+    assert.equal(d.decision, decision);
+    assert.doesNotMatch(d.reason, hangul, `${decision}: ${d.reason}`);
+  }
+  assert.equal(roundDecision(rounds.deferred).reason, 'Only 1 sentence judged (under 3), so no decision, excluding 1 unfinished attempt');
+  assert.ok(TRAINING_SENTENCES.every((x) => hangul.test(x.text)), '훈련 문장은 한국어 그대로');
 });
