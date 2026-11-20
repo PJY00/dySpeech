@@ -7,7 +7,7 @@ import { frameLevels, median } from '../../../measurement/analysis';
 import { AutoStop } from '../../../measurement/checks';
 import { bufferLevelDbfs, voiceBand, VoiceBandFilter } from '../../../measurement/filters';
 import { MemoryStore } from '../../../session/store';
-import { noise, RATE, samplesOf, speech } from '../../../session/testing/synth';
+import { noise, place, RATE, samplesOf, speech } from '../../../session/testing/synth';
 import type { SpeechSpec } from '../../../session/testing/synth';
 import type { History } from '../../../session/types';
 import { isUuidV4, uuidv4 } from '../../../session/uuid';
@@ -20,12 +20,13 @@ import { DEFAULT_DETECTION_RATIO, loadReadingState, recordDetection, shouldRebas
 import { buildGameRun, DEFAULT_REFERENCE_RATE, judgeSentence, LEVEL_SPECS, MIN_JUDGED_SENTENCES, REASON_TEXT, roundDecision, targetFor } from '../scoring';
 import type { SentenceResult } from '../scoring';
 import { hangulSyllables, roundSentences, TRAINING_SENTENCES } from '../sentences';
+import { COUNTDOWN_S, JudgeGate, judgedSamples, sentenceTiming } from '../timing';
 
 const near = (actual: number, expected: number, tol: number, what: string) =>
   assert.ok(Math.abs(actual - expected) <= tol, `${what}: ${actual.toFixed(3)} (정답 ${expected.toFixed(3)} ± ${tol.toFixed(3)})`);
 
-/** 합성 낭독. 정답 말속도 = N ÷ (마지막 모음 끝 − 첫 자음 시작 − 쉼) */
-function reading(syllables: number, vowelS: number[], seed = 3, pause: { after: number; s: number } | null = null, tailS = 1.2) {
+/** 합성 낭독(leadS초 뒤 시작). 정답 말속도 = N ÷ (마지막 모음 끝 − 첫 자음 시작 − 쉼) */
+function reading(syllables: number, vowelS: number[], seed = 3, pause: { after: number; s: number } | null = null, tailS = 1.2, leadS = 1) {
   const spec: SpeechSpec = {
     syllables,
     pauseAfter: pause ? [pause.after] : [],
@@ -35,7 +36,7 @@ function reading(syllables: number, vowelS: number[], seed = 3, pause: { after: 
     f0StartHz: 150,
     f0EndHz: 120,
     levelDbfs: -22,
-    leadS: 1,
+    leadS,
     tailS,
     noiseDbfs: -60,
     seed,
@@ -359,4 +360,68 @@ test('화면 문구: 문장 판정 문구와 라운드 판정 이유는 영어�
   }
   assert.equal(roundDecision(rounds.deferred).reason, 'Only 1 sentence judged (under 3), so no decision, excluding 1 unfinished attempt');
   assert.ok(TRAINING_SENTENCES.every((x) => hangul.test(x.text)), '훈련 문장은 한국어 그대로');
+});
+
+test('문장 시간 배치(#31): 카운트다운 3초 뒤 커서가 움직이고, 판정은 커서 0.5초 전부터, 최대 시간 = 준비 3초 + 커서 시간 × 2.5 + 4초', () => {
+  assert.equal(COUNTDOWN_S, 3);
+  const t = sentenceTiming(13, 4);
+  near(t.guideS, 3.25, 1e-9, '커서 시간 = 13음절 ÷ 4음절/초');
+  assert.equal(t.guideStartS, 3);
+  near(t.judgeFromS, 2.5, 1e-9, '판정 시작');
+  near(t.maxS, 3 + 3.25 * 2.5 + 4, 1e-9, '최대 시간');
+});
+
+test('판정 구간: 시작 시각을 걸친 마이크 버퍼는 뒤쪽만 넘기고, 녹음 파일도 같은 곳부터 자른다', () => {
+  const total = samplesOf(4);
+  const x = new Float32Array(total).map((_, i) => i);
+  const gate = new JudgeGate(2.5, RATE);
+  const out: number[] = [];
+  // 1024개씩: 2.5초(120000번째)가 버퍼 중간에 걸린다
+  for (let i = 0; i < total; i += 1024) {
+    const part = gate.take(x.subarray(i, i + 1024));
+    if (part) out.push(...part);
+  }
+  assert.equal(out.length, total - samplesOf(2.5));
+  assert.equal(out[0], samplesOf(2.5));
+  const cut = judgedSamples(x, RATE, 2.5);
+  assert.deepEqual([cut.length, cut[0]], [out.length, out[0]]);
+  assert.equal(judgedSamples(x, RATE, 10).length, 0, '녹음보다 늦으면 빈 표본');
+});
+
+/** 앱과 같은 순서로 20 ms 버퍼를 흘린다: 판정 구간만 진행 표시에, 음량은 처음부터 끝내기 규칙에 */
+function runCountdown(samples: Float32Array, syllables: number, guideRate: number) {
+  const timing = sentenceTiming(syllables, guideRate);
+  const live = new LiveReader({ sampleRate: RATE, syllables, referenceRate: guideRate, detectionRatio: DEFAULT_DETECTION_RATIO, noiseFloorDbfs: -60 });
+  const filter = new VoiceBandFilter(RATE);
+  const gate = new JudgeGate(timing.judgeFromS, RATE);
+  const end = new SentenceEnd({ syllables, floorDbfs: -60, guideStartS: timing.guideStartS, guideS: timing.guideS, maxS: timing.maxS });
+  for (let i = 0; i < samples.length; i += 960) {
+    const chunk = samples.subarray(i, i + 960);
+    const judged = gate.take(chunk);
+    if (judged) live.push(judged);
+    const level = bufferLevelDbfs(filter.process(chunk));
+    if (end.push(level, chunk.length / RATE, live.estimate)) return { stopS: (i + chunk.length) / RATE, reason: end.reason, timing };
+  }
+  return { stopS: samples.length / RATE, reason: null, timing };
+}
+
+test('카운트다운(#31): 3초 동안 소리 내어 미리 읽어도 그 소리는 말속도와 진행 표시에 들어가지 않는다', () => {
+  // 실제 낭독: 커서 시작(3초)에 맞춰 13음절. 미리 읽기: 0.3초부터 6음절, 판정 시작(2.5초) 전에 끝남
+  const r = reading(13, [0.16], 12, null, 3, COUNTDOWN_S);
+  const practice = reading(6, [0.16], 5, null, 0, 0.3);
+  const practiceEnd = practice.syllables[practice.syllables.length - 1].end;
+  assert.ok(practiceEnd < 2.4, `미리 읽기 끝 ${practiceEnd.toFixed(2)}초`);
+  const mixed = place(r.samples, practice.samples, 0);
+  const e = runCountdown(mixed, 13, r.truth);
+  const lastEnd = r.syllables[r.syllables.length - 1].end;
+  assert.equal(e.reason, 'progress');
+  assert.ok(e.stopS > lastEnd, `실제 낭독이 끝난 뒤에 끝남: ${e.stopS.toFixed(2)}초 > ${lastEnd.toFixed(2)}초`);
+  const stop = mixed.subarray(0, Math.round(e.stopS * RATE));
+  const opts = { noiseFloorDbfs: -60, searchRange: { min: 75, max: 500 } };
+  const a = analyzeSentence(judgedSamples(stop, RATE, e.timing.judgeFromS), RATE, 13, opts);
+  assert.ok(a.rate);
+  near(a.rate, r.truth, r.truth * 0.06, '판정 구간 말속도');
+  // 비교: 앞부분을 빼지 않으면 미리 읽은 소리가 발화 시간에 들어가 말속도가 느리게 잡힌다
+  const all = analyzeSentence(stop, RATE, 13, opts);
+  assert.ok(all.rate !== null && all.rate < r.truth * 0.85, `전체 녹음 말속도 ${all.rate} (정답 ${r.truth.toFixed(2)})`);
 });

@@ -1,6 +1,7 @@
 // 노래방 따라 읽기(game = guide_reading, 말속도 영역). 라운드 하나 = 문장 5개.
 // 안내 커서가 목표 속도로 글자 위를 지나가고, 사용자가 읽은 곳은 아래 점으로 따로 보여 준다.
 // 문장을 끝내는 조건은 endRule.ts(80% 넘게 읽었으면 1초 무음, 아니면 안내가 끝난 뒤 3초 무음). 화면은 React Native 기본 애니메이션(Animated)만 쓴다.
+// [Start]를 누르면 3·2·1을 보여 준 뒤 커서가 움직이고, 판정에는 커서 시작 0.5초 전부터의 소리만 쓴다(timing.ts).
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -21,9 +22,8 @@ import { buildGameRun, judgeSentence, REASON_TEXT, targetFor } from './scoring';
 import type { SentenceResult } from './scoring';
 import { roundSentences } from './sentences';
 import type { TrainingSentence } from './sentences';
+import { COUNTDOWN_S, JudgeGate, judgedSamples, sentenceTiming } from './timing';
 
-/** 녹음을 시작하고 안내 커서가 움직이기 전까지(초). 이 동안 잡음 바닥을 잰다 */
-const PREROLL_S = 1;
 /** 진전도를 기다리는 최대 시간(밀리초). 넘으면 저장된 기준으로 시작 */
 const HISTORY_TIMEOUT_MS = 3000;
 
@@ -51,12 +51,14 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   const [results, setResults] = useState<SentenceResult[]>([]);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  /** 카운트다운에 보여 줄 숫자(3·2·1). 커서가 움직이면 null */
+  const [countdown, setCountdown] = useState<number | null>(null);
   const cursor = useRef(new Animated.Value(0)).current;
   const recorder = useRef<MeasurementRecorder | null>(null);
   const stopping = useRef(false);
   const startedAt = useRef(new Date().toISOString());
   const gameRunId = useRef(uuidv4());
-  const guideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const sentence = sentences[index];
   const target = reading ? targetFor(reading.referenceRate, level) : null;
@@ -78,7 +80,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
       }
     })();
     return () => {
-      if (guideTimer.current) clearTimeout(guideTimer.current);
+      if (countdownTimer.current) clearInterval(countdownTimer.current);
       void recorder.current?.release().then((left) => (left ? discardRecordingFile(left.fileUri) : undefined));
     };
   }, []);
@@ -93,7 +95,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   async function start() {
     if (!recorder.current || !reading || !target) return;
     const s = sentence;
-    const guideS = s.syllables / target.guideRate;
+    const timing = sentenceTiming(s.syllables, target.guideRate);
     const live = new LiveReader({
       sampleRate: 48000,
       syllables: s.syllables,
@@ -105,10 +107,12 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
     const end = new SentenceEnd({
       syllables: s.syllables,
       floorDbfs: baselines.noiseFloorDbfs,
-      guideStartS: PREROLL_S,
-      guideS,
-      maxS: PREROLL_S + guideS * 2.5 + 4,
+      guideStartS: timing.guideStartS,
+      guideS: timing.guideS,
+      maxS: timing.maxS,
     });
+    // 카운트다운 동안 낸 소리는 실시간 진행 표시에 넣지 않는다
+    const gate = new JudgeGate(timing.judgeFromS, 48000);
     stopping.current = false;
     cursor.setValue(0);
     setProgress(0);
@@ -116,28 +120,48 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
     let n = 0;
     try {
       await recorder.current.start(uuidv4(), (lvl, dt, raw) => {
-        live.push(raw);
+        const judged = gate.take(raw);
+        if (judged) live.push(judged);
         n += 1;
         if (n % 5 === 0) setProgress(live.estimate);
         if (end.push(lvl, dt, live.estimate)) {
           if (!stopping.current) log('sentence_end', { reason: end.reason, elapsed_s: end.elapsedS, estimate: live.estimate });
-          void stop(live, end.reason ?? 'max');
+          void stop(live, end.reason ?? 'max', timing.judgeFromS);
         }
       });
     } catch (e) {
       fail(e);
       return;
     }
-    guideTimer.current = setTimeout(() => {
-      Animated.timing(cursor, { toValue: s.syllables, duration: guideS * 1000, easing: Easing.linear, useNativeDriver: false }).start();
-    }, PREROLL_S * 1000);
-    log('sentence_start', { sentence_id: s.id, guide_rate: target.guideRate, guide_s: guideS });
+    startCountdown(s.syllables, timing.guideS);
+    log('sentence_start', { sentence_id: s.id, guide_rate: target.guideRate, guide_s: timing.guideS, countdown_s: COUNTDOWN_S, judge_from_s: timing.judgeFromS });
   }
 
-  async function stop(live: LiveReader, endReason: EndReason) {
+  /** 3·2·1을 1초씩 보여 준 뒤 안내 커서를 움직인다 */
+  function startCountdown(syllables: number, guideS: number) {
+    let left = COUNTDOWN_S;
+    setCountdown(left);
+    countdownTimer.current = setInterval(() => {
+      left -= 1;
+      if (left > 0) {
+        setCountdown(left);
+        return;
+      }
+      clearCountdown();
+      Animated.timing(cursor, { toValue: syllables, duration: guideS * 1000, easing: Easing.linear, useNativeDriver: false }).start();
+    }, 1000);
+  }
+
+  function clearCountdown() {
+    if (countdownTimer.current) clearInterval(countdownTimer.current);
+    countdownTimer.current = null;
+    setCountdown(null);
+  }
+
+  async function stop(live: LiveReader, endReason: EndReason, judgeFromS: number) {
     if (stopping.current || !recorder.current || !target) return;
     stopping.current = true;
-    if (guideTimer.current) clearTimeout(guideTimer.current);
+    clearCountdown();
     cursor.stopAnimation();
     // 80% 넘게 읽고 끝났을 때만 진행 표시를 끝까지 채운다
     if (fillsProgress(endReason)) live.finish();
@@ -148,7 +172,9 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
       await new Promise((r) => setTimeout(r, 30));
       const bytes = await readRecordingFile(file.fileUri);
       const info = parseWav(bytes);
-      const a = analyzeSentence(decodePcm16(bytes, info), info.sampleRate, sentence.syllables, {
+      // 판정은 커서 시작 0.5초 전부터의 소리로만(카운트다운 동안 미리 읽어 본 소리는 뺌)
+      const samples = judgedSamples(decodePcm16(bytes, info), info.sampleRate, judgeFromS);
+      const a = analyzeSentence(samples, info.sampleRate, sentence.syllables, {
         noiseFloorDbfs: baselines.noiseFloorDbfs,
         searchRange: baselines.f0SearchRangeHz,
       });
@@ -203,7 +229,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   }
 
   async function exit() {
-    if (guideTimer.current) clearTimeout(guideTimer.current);
+    clearCountdown();
     const left = await recorder.current?.release();
     if (left) await discardRecordingFile(left.fileUri);
     onExit();
@@ -249,7 +275,13 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
           <Button label="Exit" kind="secondary" onPress={() => void exit()} />
         </>
       )}
-      {phase === 'reading' && <Text style={s.body}>{progress < 0.5 ? 'Get ready… start reading when the blue letters move' : 'Reading…'}</Text>}
+      {phase === 'reading' && countdown !== null && (
+        <>
+          <Text style={s.countdown}>{countdown}</Text>
+          <Text style={s.body}>Read it silently first. Start reading aloud when the blue letters move.</Text>
+        </>
+      )}
+      {phase === 'reading' && countdown === null && <Text style={s.body}>{progress < 0.5 ? 'Read along with the blue letters' : 'Reading…'}</Text>}
       {phase === 'analyzing' && <ActivityIndicator size="large" />}
       {phase === 'feedback' && last && target && !last.judged && (
         <>
@@ -332,6 +364,7 @@ const s = StyleSheet.create({
   note: { fontSize: 16, lineHeight: 24, color: '#555' },
   warn: { fontSize: 19, lineHeight: 28, color: '#b3261e' },
   ok: { fontSize: 22, color: '#1b5e20', fontWeight: '700' },
+  countdown: { fontSize: 64, fontWeight: '800', color: '#1565c0', textAlign: 'center' },
   sentenceBox: { flexDirection: 'row', flexWrap: 'wrap', padding: 20, borderRadius: 14, backgroundColor: '#f3f6fb', rowGap: 8 },
   word: { flexDirection: 'row', marginRight: 14 },
   char: { fontSize: 34, fontWeight: '700', color: '#9e9e9e' },

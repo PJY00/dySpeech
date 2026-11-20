@@ -16,7 +16,7 @@ const HOP_S = 0.01;
 const PITCH_WINDOW_AT_48K = 2048;
 const CLARITY_MIN = 0.85;
 const VOICE_MARGIN_DB = 10;
-/** 잡음 바닥을 정하기 전에 모으는 프레임 수(0.3초, 준비 시간 안) */
+/** 잡음 바닥을 정하기 전에 모으는 프레임 수(0.3초). 앱은 판정 구간(커서 시작 0.5초 전)부터 넣으므로 커서가 움직이기 전이다 */
 const FLOOR_FRAMES = 30;
 const DETECTED_WEIGHT = 0.7;
 
