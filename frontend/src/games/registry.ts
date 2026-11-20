@@ -4,6 +4,7 @@
 import type { GameArea, GameEntry, GameName } from '../training/gameTypes';
 import { BalloonGameScreen, CandleGameScreen, MAX_LEVEL as BREATH_MAX_LEVEL } from './balloon';
 import { GuideReadingGame, MAX_LEVEL as GUIDE_READING_MAX_LEVEL } from './guide_reading';
+import { MAX_LEVEL as ROLLER_COASTER_MAX_LEVEL, RollerCoasterRound } from './roller_coaster';
 import { MAX_LEVEL as SPACESHIP_MAX_LEVEL, SpaceshipRound } from './spaceship';
 
 export { GAME_AREAS, GAME_NAMES } from '../training/gameTypes';
@@ -14,6 +15,7 @@ export const GAMES: readonly GameEntry[] = [
   { game: 'candle', area: 'breath', title: 'Keep the Candle Lit', description: 'Keep making sound to keep the candle burning', maxLevel: BREATH_MAX_LEVEL, component: CandleGameScreen },
   { game: 'guide_reading', area: 'rate', title: '속도 맞춰 읽기', description: '파란 안내를 따라 같은 빠르기로 읽어요', maxLevel: GUIDE_READING_MAX_LEVEL, component: GuideReadingGame },
   { game: 'spaceship', area: 'intonation', title: 'Spaceship', description: 'Move the ship with your voice pitch and follow the path', maxLevel: SPACESHIP_MAX_LEVEL, component: SpaceshipRound },
+  { game: 'roller_coaster', area: 'intonation', title: 'Roller Coaster', description: 'Lay the track with your voice and ride along', maxLevel: ROLLER_COASTER_MAX_LEVEL, component: RollerCoasterRound },
 ];
 
 export function gamesInArea(area: GameArea): GameEntry[] {
