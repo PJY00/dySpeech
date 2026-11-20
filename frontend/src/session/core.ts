@@ -1,7 +1,7 @@
 // 세션 모듈의 기능. 저장소·API·시계를 주입받아 앱(index.ts)과 테스트가 같은 코드를 쓴다.
 
 import type { ApiClient } from './api';
-import { ApiError } from './api';
+import { ApiError, OFF_SERVER_404 } from './api';
 import { Repo } from './records';
 import type { DeviceInfo, RecordingRecord, SessionRecord, UserRecord } from './records';
 import { normalizeFileUri } from './store';
@@ -416,6 +416,12 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
         if (rec.state === 'sending') {
           rec.state = 'queued';
           await repo.saveSession(rec, now());
+        }
+        // 예전 앱이 서버까지 닿지 못한 404(OFF_SERVER_404)로 막아 둔 회차를 다시 보낸다(이슈 #37). 다른 이유로 막힌 회차는 그대로
+        if (rec.state === 'blocked' && rec.lastError?.code === OFF_SERVER_404) {
+          rec.state = 'queued';
+          await repo.saveSession(rec, now());
+          log('requeue_blocked', { session_id: rec.id, code: OFF_SERVER_404 });
         }
         if (rec.state === 'queued') resumed += 1;
         if (rec.state === 'recording') {

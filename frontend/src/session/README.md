@@ -84,10 +84,11 @@ const p = await session.waitForResult({ onProgress: (x) => console.log(x.state),
 | 상황 | 처리 |
 |---|---|
 | 네트워크 끊김, 500 | 2·5·15·30·60초 간격으로 다시 보냄(최대 5회). 그래도 안 되면 `queued`로 두고 다음에 앱을 켜거나 앞으로 가져올 때 다시 |
+| 404인데 `error.code`가 없음 | 서버까지 닿지 못한 것(예: 서버가 멈춘 동안 Railway의 `Application not found`)이라 네트워크 끊김과 같이 다시 보냄. 우리 서버의 404는 늘 `error.code`가 있다(api.md 3장). 이 이유로 예전 앱이 `blocked`로 둔 회차는 `resumePending`이 `queued`로 되돌린다(이슈 #37) |
 | 404 `USER_NOT_FOUND` / `SESSION_NOT_FOUND` | 사용자나 세션 등록부터 다시 |
 | S3 PUT 403(URL 만료) | 같은 녹음 ID로 업로드 URL을 다시 받음 |
 | 409 `MISSING_RECORDINGS` | 빠진 녹음만 다시 올리고 complete를 다시 보냄 |
-| 401, 409 `ID_CONFLICT`, 413, 422 | `blocked`(422는 `fields`·`invalid_recordings`를 `lastError.message`에 남김) |
+| 401, 409 `ID_CONFLICT`, 413, 422, 404 `NOT_FOUND`, 405 | `blocked`(422는 `fields`·`invalid_recordings`를 `lastError.message`에 남김) |
 | 202 뒤 | 4초 간격으로 상태 확인, 3분이 지나면 멈추고 다음에 다시 확인 |
 
 - 같은 ID는 같은 결과를 내므로(api.md 2.6) 끊기면 처음부터 다시 보낸다. ID는 만드는 즉시 저장한다.

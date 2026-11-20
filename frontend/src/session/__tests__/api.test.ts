@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ApiClient, ApiError, classifyError, NetworkError, UploadError } from '../api';
+import { ApiClient, ApiError, classifyError, NetworkError, OFF_SERVER_404, UploadError } from '../api';
 import type { FetchLike } from '../api';
 
 test('오류 분류: 재시도 규칙 표와 같다', () => {
@@ -12,6 +12,7 @@ test('오류 분류: 재시도 규칙 표와 같다', () => {
   assert.equal(classifyError(new ApiError(404, 'SESSION_NOT_FOUND', '')), 'session_missing');
   assert.equal(classifyError(new ApiError(409, 'MISSING_RECORDINGS', '')), 'missing_recordings');
   assert.equal(classifyError(new ApiError(422, 'INVALID_RECORDING_FORMAT', '')), 'invalid_recordings');
+  assert.equal(classifyError(new ApiError(404, 'HTTP_404', '')), 'retry', 'error.code가 없는 404: 서버까지 닿지 못함(이슈 #37)');
   for (const [status, code] of [
     [401, 'INVALID_APP_KEY'],
     [409, 'ID_CONFLICT'],
@@ -43,6 +44,25 @@ test('오류 응답의 code·message·추가 필드를 읽고, 앱 키를 헤더
   });
   assert.equal(seen[0]['X-App-Key'], 'k');
   assert.equal(seen[0]['Content-Type'], 'application/json');
+});
+
+test('서버가 멈춘 동안 Railway가 돌려준 404(우리 오류 형식 아님)는 HTTP_404로 읽고 다시 보낸다(이슈 #37)', async () => {
+  const railway: FetchLike = async () => ({
+    status: 404,
+    text: async () => JSON.stringify({ status: 'error', code: 404, message: 'Application not found', request_id: 'r' }),
+  });
+  await assert.rejects(new ApiClient({ baseUrl: 'http://x/', appKey: 'k', fetch: railway }).putUser('u', 't'), (e: unknown) => {
+    assert.ok(e instanceof ApiError);
+    assert.deepEqual([e.status, e.code, classifyError(e)], [404, OFF_SERVER_404, 'retry']);
+    return true;
+  });
+  // 우리 서버의 404는 error.code가 있으므로 지금처럼 나눈다
+  const ours: FetchLike = async () => ({ status: 404, text: async () => JSON.stringify({ error: { code: 'NOT_FOUND', message: '없는 경로' } }) });
+  await assert.rejects(new ApiClient({ baseUrl: 'http://x/', appKey: 'k', fetch: ours }).putUser('u', 't'), (e: unknown) => {
+    assert.ok(e instanceof ApiError);
+    assert.deepEqual([e.code, classifyError(e)], ['NOT_FOUND', 'blocked']);
+    return true;
+  });
 });
 
 test('S3 오류 XML에서 Code와 Message를 꺼내고, 연결 실패는 NetworkError', async () => {

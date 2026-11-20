@@ -88,12 +88,12 @@ export class NetworkError extends Error {}
 
 /**
  * 오류를 재시도 규칙(src/session/README.md)으로 나눈다
- * - retry: 잠시 뒤 같은 요청을 다시 보냄(연결 실패, 5xx, S3 5xx)
+ * - retry: 잠시 뒤 같은 요청을 다시 보냄(연결 실패, 5xx, S3 5xx, error.code가 없는 404)
  * - user_missing / session_missing: 등록부터 다시
  * - missing_recordings: 빠진 녹음만 다시 올리고 complete를 다시 보냄
  * - upload_expired: 업로드 URL을 다시 받음(S3 403)
  * - invalid_recordings: 녹음 규격 오류(422 INVALID_RECORDING_FORMAT). 기기에서 고칠 수 없음
- * - blocked: 다시 보내도 같음(401, 409 ID 충돌, 413, 422, 404·405 경로 오류, 그 밖의 4xx)
+ * - blocked: 다시 보내도 같음(401, 409 ID 충돌, 413, 422, 404 NOT_FOUND·405 경로 오류, 그 밖의 4xx)
  */
 export type ErrorKind =
   | 'retry'
@@ -103,6 +103,12 @@ export type ErrorKind =
   | 'upload_expired'
   | 'invalid_recordings'
   | 'blocked';
+
+/**
+ * 우리 서버까지 닿지 못한 404의 code. 우리 서버의 404는 늘 error.code가 있다(api.md 3장: USER_NOT_FOUND, NOT_FOUND 등).
+ * error.code가 없는 404는 앞단(배포 플랫폼)이 낸 것이다. 예: 서버가 멈춘 동안 Railway의 {"code":404,"message":"Application not found"}(이슈 #37)
+ */
+export const OFF_SERVER_404 = 'HTTP_404';
 
 export function classifyError(error: unknown): ErrorKind {
   if (error instanceof NetworkError) return 'retry';
@@ -117,6 +123,7 @@ export function classifyError(error: unknown): ErrorKind {
     if (error.code === 'SESSION_NOT_FOUND') return 'session_missing';
     if (error.code === 'MISSING_RECORDINGS') return 'missing_recordings';
     if (error.code === 'INVALID_RECORDING_FORMAT') return 'invalid_recordings';
+    if (error.status === 404 && error.code === OFF_SERVER_404) return 'retry';
     return 'blocked';
   }
   return 'blocked';
