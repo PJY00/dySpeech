@@ -168,7 +168,7 @@ def test_other_sessions_and_low_reliability_values_are_left_out(add_session, db)
 
     data = result([], db)
 
-    assert data["excluded"] == {"dev_sessions": 2, "later_same_day": 0, "low_reliability_values": 1}
+    assert data["excluded"] == {"dev_sessions": 2, "excluded_speaker_sessions": 0, "later_same_day": 0, "low_reliability_values": 1}
     mpt = by_metric(data)["max_phonation_time"]
     assert (mpt["values"], mpt["mean"]) == (2, 11.0)
     # 신뢰 낮음 값을 빼면 기본주파수 중앙값은 하루치만 남아 계산되지 않는다.
@@ -198,6 +198,26 @@ def test_user_ids_of_one_speaker_are_merged_and_level_change_uses_the_sentence_l
     assert level["sem_raw"] == pytest.approx(1.0)
     assert by_metric(merged)["max_phonation_time"]["days_per_speaker"] == [3]
     assert [visit["values"].get("mean_level_change") for visit in merged["visits"]] == [-20.0, -18.0, -19.0, None]
+
+
+def test_excluded_speaker_is_left_out_under_any_of_its_user_ids(add_days, db):
+    for base in (5.0, 6.0, 7.0):
+        add_days({"max_phonation_time": [base, base + 1.0, base + 2.0]})
+    first = add_days({"max_phonation_time": [20.0, 12.0]})
+    second = add_days({"max_phonation_time": [5.0]}, first_day=2)
+
+    everyone = result(["--same-speaker", f"{first}={second}"], db)
+    without = result(["--same-speaker", f"{first}={second}", "--exclude-speaker", str(second)], db)
+
+    assert by_metric(everyone)["max_phonation_time"]["speakers"] == 4
+    # 뺀 화자의 세 회차(두 사용자 ID)가 모두 빠지고, 남은 세 화자는 측정 표준오차가 1이다.
+    assert without["excluded"]["excluded_speaker_sessions"] == 3
+    assert len(without["speakers"]) == 3 and without["protocol_met"] is False
+    mpt = by_metric(without)["max_phonation_time"]
+    assert (mpt["speakers"], mpt["degrees_of_freedom"]) == (3, 6)
+    assert mpt["sem_raw"] == pytest.approx(1.0)
+    assert "화자 1명 제외" in without["selected"][0]["note"]
+    assert "뺀 화자의 회차 3개" in run(["--same-speaker", f"{first}={second}", "--exclude-speaker", str(first)], db)[1]
 
 
 def test_icc_matches_a_published_example():

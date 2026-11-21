@@ -5,6 +5,7 @@
 backend 폴더에서 실행한다. DB는 .env(또는 환경 변수)의 운영 접속 정보를 쓴다. S3는 쓰지 않는다.
     python -m analysis.retest                                  계산 결과만 보여 준다(쓰지 않음)
     --same-speaker 사용자ID=사용자ID   두 사용자 ID를 한 화자로 묶는다(앱을 다시 설치해 ID가 바뀐 경우). 여러 번 쓸 수 있다
+    --exclude-speaker 사용자ID         이 화자의 회차를 모두 뺀다(측정 조건이 달랐던 화자). 여러 번 쓸 수 있다
     --log 지표,지표                    이 지표는 로그 척도 값으로 반영한다. 나머지는 원 척도
     --detail                           회차별 값도 함께 보여 준다
     --json                             JSON으로 출력한다(기본은 마크다운 표)
@@ -68,6 +69,7 @@ class Visit:
 @dataclass(frozen=True)
 class Excluded:
     dev_sessions: int  # 개발용이라 뺀 회차 수
+    excluded_speaker_sessions: int  # 빼기로 한 화자의 회차라 뺀 회차 수
     later_same_day: int  # 같은 날 첫 회차가 아니라 뺀 회차 수
     low_reliability_values: int  # 신뢰 낮음이라 뺀 값 수
 
@@ -149,20 +151,24 @@ def is_dev(meta: dict | None, complete_meta: dict | None) -> bool:
     return (meta or {}).get("dev") is True or (complete_meta or {}).get("dev") is True
 
 
-def load_visits(db: Session, same_speaker: dict[uuid.UUID, uuid.UUID] | None = None) -> tuple[list[Visit], Excluded]:
+def load_visits(
+    db: Session, same_speaker: dict[uuid.UUID, uuid.UUID] | None = None, exclude: set[uuid.UUID] | None = None
+) -> tuple[list[Visit], Excluded]:
     """
     화자마다 하루에 한 회차씩, 계산에 쓸 서버 값을 읽음. 읽기만 함
-    입력: db (DB 세션), same_speaker (speaker_map이 만든 "사용자 ID → 화자" 표. 없으면 사용자 ID가 곧 화자)
-    출력: (Visit 목록(시작 시각·세션 ID 순. 시작 시각은 한국 시간), Excluded(뺀 개발용 회차 수, 뺀 같은 날 뒤 회차 수, 뺀 신뢰 낮음 값 수))
+    입력: db (DB 세션), same_speaker (speaker_map이 만든 "사용자 ID → 화자" 표. 없으면 사용자 ID가 곧 화자), exclude (뺄 화자의 사용자 ID 집합. 묶인 ID 중 어느 것을 적어도 됨)
+    출력: (Visit 목록(시작 시각·세션 ID 순. 시작 시각은 한국 시간), Excluded(뺀 개발용 회차 수, 뺀 화자의 회차 수, 뺀 같은 날 뒤 회차 수, 뺀 신뢰 낮음 값 수))
     알고리즘
     1. done 훈련 회차를 시작 시각·ID 순으로 읽음
     2. 개발용 회차(is_dev)를 빼고 수를 셈
-    3. 사용자 ID를 화자로 바꾼 뒤, 화자와 한국 시간 날짜가 같은 회차 중 첫 회차만 남기고 나머지 수를 셈
-    4. 남은 회차의 서버 측정값(source = server, 알고리즘 버전이 지금 버전 ALGORITHM_VERSION) 중 정의된 지표(METRICS)를 읽음
-    5. 신뢰 낮음 값은 빼고 수를 셈
-    6. 평균 음량 변화는 값 대신 세부 정보의 sentence_level_dbfs(평가 문장 발화 음량, dBFS)를 씀. 없으면 그 값은 뺌
+    3. 사용자 ID를 화자로 바꾼 뒤, 빼기로 한 화자(exclude)의 회차를 빼고 수를 셈
+    4. 화자와 한국 시간 날짜가 같은 회차 중 첫 회차만 남기고 나머지 수를 셈
+    5. 남은 회차의 서버 측정값(source = server, 알고리즘 버전이 지금 버전 ALGORITHM_VERSION) 중 정의된 지표(METRICS)를 읽음
+    6. 신뢰 낮음 값은 빼고 수를 셈
+    7. 평균 음량 변화는 값 대신 세부 정보의 sentence_level_dbfs(평가 문장 발화 음량, dBFS)를 씀. 없으면 그 값은 뺌
     """
     same_speaker = same_speaker or {}
+    excluded_speakers = {same_speaker.get(user_id, user_id) for user_id in exclude or ()}
     sessions = db.execute(
         select(
             SessionRow.id, SessionRow.user_id, SessionRow.started_at, SessionRow.input_device,
@@ -174,12 +180,15 @@ def load_visits(db: Session, same_speaker: dict[uuid.UUID, uuid.UUID] | None = N
 
     chosen: dict[uuid.UUID, tuple[uuid.UUID, uuid.UUID, datetime, str]] = {}
     seen_days: set[tuple[uuid.UUID, date]] = set()
-    dev_sessions = later_same_day = 0
+    dev_sessions = speaker_sessions = later_same_day = 0
     for session_id, user_id, started_at, input_device, meta, complete_meta in sessions:
         if is_dev(meta, complete_meta):
             dev_sessions += 1
             continue
         speaker = same_speaker.get(user_id, user_id)
+        if speaker in excluded_speakers:
+            speaker_sessions += 1
+            continue
         started = started_at.astimezone(KST)
         day = (speaker, started.date())
         if day in seen_days:
@@ -216,7 +225,7 @@ def load_visits(db: Session, same_speaker: dict[uuid.UUID, uuid.UUID] | None = N
         Visit(speaker, user_id, session_id, started, input_device, values[session_id])
         for session_id, (speaker, user_id, started, input_device) in chosen.items()
     ]
-    return visits, Excluded(dev_sessions, later_same_day, low_values)
+    return visits, Excluded(dev_sessions, speaker_sessions, later_same_day, low_values)
 
 
 def within_sem(groups: list[np.ndarray]) -> tuple[float, int] | None:
@@ -318,16 +327,16 @@ def analyze(visits: list[Visit]) -> list[MetricResult]:
     return results
 
 
-def select_values(results: list[MetricResult], log_metrics: set[str]) -> list[Selection]:
+def select_values(results: list[MetricResult], log_metrics: set[str], excluded_speakers: int = 0) -> list[Selection]:
     """
     mdc_values에 넣을 값을 고름
-    입력: results (analyze 결과), log_metrics (로그 척도로 반영할 지표 이름 집합)
+    입력: results (analyze 결과), log_metrics (로그 척도로 반영할 지표 이름 집합), excluded_speakers (--exclude-speaker로 뺀 화자 수)
     출력: Selection 목록(진전도 지표 중 계산됐고 측정 표준오차가 0보다 큰 것, 지표 정의 순). log_metrics에 진전도 지표가 아니거나 로그 척도로 계산되지 않은 지표가 있으면 ValueError
     알고리즘
     1. log_metrics의 이름이 모두 진전도 지표(PROGRESS_METRICS)인지 확인함
     2. 진전도 지표마다 log_metrics에 있으면 로그 척도 값(%), 없으면 원 척도 값을 고름. 소수 넷째 자리로 반올림함
        계산되지 않았거나 측정 표준오차가 0인(값이 날마다 같은) 지표는 건너뜀
-    3. 설명(note)에 자료 종류, 화자별 날 수, 값 수, 자유도를 적음. 평균 음량 변화는 평가 문장 발화 음량으로 계산했다고 덧붙임
+    3. 설명(note)에 자료 종류, 화자별 날 수, 값 수, 자유도를 적음. 뺀 화자가 있으면 그 수를, 평균 음량 변화는 평가 문장 발화 음량으로 계산했다고 덧붙임
     """
     progress = {metric.value for metric in PROGRESS_METRICS}
     unknown = sorted(log_metrics - progress)
@@ -342,6 +351,8 @@ def select_values(results: list[MetricResult], log_metrics: set[str]) -> list[Se
             raise ValueError(f"{item.metric}은 0 이하인 값이 있어 로그 척도로 계산되지 않았습니다")
         days = "·".join(str(count) for count in item.days_per_speaker)
         note = f"훈련 회차의 측정 블록(그날 첫 회차), 건강한 성인. 화자별 날 수 {days}, 값 {item.values}개, 자유도 {item.degrees_of_freedom}"
+        if excluded_speakers:
+            note += f". 화자 {excluded_speakers}명 제외"
         if item.metric == Metric.mean_level_change.value:
             note += ". 평가 문장 발화 음량(dBFS)으로 계산"
         selections.append(
@@ -436,7 +447,8 @@ def render(visits: list[Visit], results: list[MetricResult], selections: list[Se
     lines = [
         f"반복 측정: 최소 측정 가능 변화량 (서버 알고리즘 버전 {ALGORITHM_VERSION})",
         f"- 회차 {len(visits)}개, 화자 {len(grouped)}명. 조건({PROTOCOL_SPEAKERS}명 × 서로 다른 날 {PROTOCOL_DAYS}회) {met}",
-        f"- 뺀 것: 개발용 회차 {excluded.dev_sessions}개, 같은 날 뒤 회차 {excluded.later_same_day}개, 신뢰 낮음 값 {excluded.low_reliability_values}개",
+        f"- 뺀 것: 개발용 회차 {excluded.dev_sessions}개, 뺀 화자의 회차 {excluded.excluded_speaker_sessions}개, "
+        f"같은 날 뒤 회차 {excluded.later_same_day}개, 신뢰 낮음 값 {excluded.low_reliability_values}개",
         f"- {Metric.mean_level_change.value}의 평균과 회차별 값은 평가 문장 발화 음량(dBFS)",
         "",
     ]
@@ -530,7 +542,7 @@ def main(argv: list[str] | None = None, db: Session | None = None, out: Callable
     """
     반복 측정으로 최소 측정 가능 변화량을 계산하는 명령을 실행함
     입력:
-    - argv: 명령줄 인자 목록(없으면 sys.argv). --same-speaker(한 화자로 묶을 사용자 ID, 여러 번), --log(로그 척도로 반영할 지표, 쉼표로 구분), --detail(회차별 값도 출력), --json(JSON으로 출력), --yes(mdc_values에 반영), --force(조건을 채우지 못해도 반영)
+    - argv: 명령줄 인자 목록(없으면 sys.argv). --same-speaker(한 화자로 묶을 사용자 ID, 여러 번), --exclude-speaker(뺄 화자의 사용자 ID, 여러 번), --log(로그 척도로 반영할 지표, 쉼표로 구분), --detail(회차별 값도 출력), --json(JSON으로 출력), --yes(mdc_values에 반영), --force(조건을 채우지 못해도 반영)
     - db: DB 세션(시험용 주입, 없으면 환경 변수·backend/.env의 DATABASE_URL로 연결)
     - out: 결과를 출력할 함수(기본 print)
     출력: 종료 코드(0 = 출력했거나 반영함, 1 = 조건을 채우지 못했거나 반영할 값이 없어 반영하지 않음, 2 = 인자가 잘못됨). 결과를 out으로 씀. --yes일 때만 DB에 씀(apply_values)
@@ -545,6 +557,7 @@ def main(argv: list[str] | None = None, db: Session | None = None, out: Callable
     """
     parser = argparse.ArgumentParser(description="반복 측정으로 지표별 최소 측정 가능 변화량을 계산한다")
     parser.add_argument("--same-speaker", type=parse_group, action="append", default=[], metavar="사용자ID=사용자ID", help="두 사용자 ID를 한 화자로 묶는다")
+    parser.add_argument("--exclude-speaker", type=uuid.UUID, action="append", default=[], metavar="사용자ID", help="이 화자의 회차를 모두 뺀다")
     parser.add_argument("--log", default="", metavar="지표,지표", help="로그 척도 값으로 반영할 지표. 나머지는 원 척도")
     parser.add_argument("--detail", action="store_true", help="회차별 값도 함께 보여 준다")
     parser.add_argument("--json", action="store_true", help="JSON으로 출력한다")
@@ -563,10 +576,12 @@ def main(argv: list[str] | None = None, db: Session | None = None, out: Callable
 
         db = Session(get_engine())
 
-    visits, excluded = load_visits(db, same_speaker)
+    exclude = set(args.exclude_speaker)
+    visits, excluded = load_visits(db, same_speaker, exclude)
     results = analyze(visits)
     try:
-        selections = select_values(results, {name.strip() for name in args.log.split(",") if name.strip()})
+        removed = len({same_speaker.get(user_id, user_id) for user_id in exclude})
+        selections = select_values(results, {name.strip() for name in args.log.split(",") if name.strip()}, removed)
     except ValueError as error:
         out(str(error))
         return 2
