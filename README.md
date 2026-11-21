@@ -164,8 +164,10 @@ Apple 칩 Mac과 Homebrew 기준입니다. Homebrew가 없으면 https://brew.sh
 | `python -m analysis.device_vs_server` | 같은 세션의 기기 값과 서버 값을 지표별로 비교한 표를 만듭니다 | DB(읽기만) |
 | `python -m analysis.agc_check --session 세션ID` | 자동 게인 조절 시험 세션의 녹음으로, 폰이 녹음 음량을 스스로 조절하는지 판정합니다 | DB·S3(읽기만) |
 | `python -m analysis.recompute --all` | 서버 지표를 지금 알고리즘 버전으로 다시 계산합니다 | DB(쓰기), S3(읽기만) |
+| `python -m analysis.retest` | 반복 측정(훈련 회차의 측정 블록)으로 지표별 최소 측정 가능 변화량을 계산합니다 | DB(읽기, `--yes`를 붙이면 쓰기) |
 | `python -m analysis.aihub report 결과.jsonl` | AI Hub 구음장애 음성으로 서버 지표 계산을 점검한 결과를 표로 냅니다. 계산은 `run`으로 합니다 | 내 PC의 파일만 |
 
 - DB·S3를 쓰는 도구는 `backend/.env`에 운영 변수가 있어야 실행됩니다.
 - 지우거나 저장하는 도구(`tools.cleanup`, `analysis.recompute`)는 대상만 먼저 보여 줍니다. 확인한 뒤 `--yes`를 붙여야 실제로 지우거나 저장합니다.
+- `analysis.retest`도 계산 결과만 먼저 보여 줍니다. `--yes`를 붙여야 값을 서버에 반영합니다. 결과는 [`docs/validation.md`](docs/validation.md) 4장에 있습니다.
 - 합성 신호와 정답값은 [`backend/fixtures/synthetic/`](backend/fixtures/synthetic/README.md)에, 자동 게인 조절 시험 소리는 [`backend/fixtures/agc/`](backend/fixtures/agc/README.md)에 있습니다. WAV는 커밋하지 않고 필요할 때 만듭니다.
