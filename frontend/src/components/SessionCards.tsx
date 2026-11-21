@@ -3,8 +3,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Card } from '@/components/Card';
+import { formatWhen, L } from '@/i18n';
 import { colors, radius, spacing } from '@/theme';
-import { CARD_LABELS } from '@/training/labels';
+import { cardLabel, purposeLabel } from '@/training/labels';
 import type { SessionCard } from '@/training/labels';
 
 const STATUS_COLORS: Record<SessionCard['status'], string> = {
@@ -17,7 +18,7 @@ const STATUS_COLORS: Record<SessionCard['status'], string> = {
 export function SessionCards({ cards }: { cards: SessionCard[] }) {
   return (
     <Card>
-      <Text style={styles.sectionTitle}>최근 회차</Text>
+      <Text style={styles.sectionTitle}>{L('최근 회차', 'Recent sessions')}</Text>
       {cards.map(({ summary: s, status }) => {
         const when = new Date(s.startedAt);
         return (
@@ -28,20 +29,21 @@ export function SessionCards({ cards }: { cards: SessionCard[] }) {
           >
             <View style={styles.text}>
               <Text style={styles.title}>
-                {s.purpose === 'retest' ? '반복 측정' : '훈련'} · {when.getMonth() + 1}월 {when.getDate()}일 {when.getHours()}시{' '}
-                {when.getMinutes()}분
+                {purposeLabel(s.purpose)} · {formatWhen(when)}
               </Text>
               {status === 'sending' && s.total > 0 ? (
                 <Text style={styles.note}>
-                  녹음 올리기 {s.uploaded} / {s.total}
+                  {L('녹음 올리기', 'Uploading recordings')} {s.uploaded} / {s.total}
                 </Text>
               ) : null}
               {status === 'unsent' && s.lastErrorCode ? (
-                <Text style={styles.note}>다음에 앱을 열거나 돌아올 때 다시 보내요({s.lastErrorCode})</Text>
+                <Text style={styles.note}>
+                  {L('다음에 앱을 열거나 돌아올 때 다시 보내요', 'Will retry when you open or return to the app')} ({s.lastErrorCode})
+                </Text>
               ) : null}
             </View>
             <Text style={[styles.badge, { color: STATUS_COLORS[status], borderColor: STATUS_COLORS[status] }]}>
-              {CARD_LABELS[status]}
+              {cardLabel(status)}
             </Text>
           </Pressable>
         );

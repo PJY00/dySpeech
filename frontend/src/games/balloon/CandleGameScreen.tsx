@@ -6,15 +6,17 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { MAX_LEVEL, ROUND_SECONDS } from './balloonLogic';
 import { FLAME_OUT_BELOW, flameColor, flameCoreColor, flameKelvin, sceneColor } from './flameColor';
+import { L, useLang } from '../../i18n';
 import type { BalloonGameProps } from './gameProps';
 import { Button, common, LevelBadge, NoticeFrame, ResultPanel } from './RoundPanel';
 import { useBalloonRound } from './useBalloonRound';
 
-const TITLE = 'Keep the Candle Lit';
 const FLAME_WIDTH = 70;
 const FLAME_HEIGHT = 130;
 
 export function CandleGameScreen(props: BalloonGameProps) {
+  useLang();
+  const TITLE = L('촛불 지키기', 'Keep the Candle Lit');
   const round = useBalloonRound({ ...props, game: 'candle' });
   const { phase, state, target, lastRun } = round;
 
@@ -24,13 +26,16 @@ export function CandleGameScreen(props: BalloonGameProps) {
   // 불의 세기는 풍선의 크기와 같은 값이다(가득 1 → 꺼짐 0)
   const heat = state.size;
   const lit = heat > FLAME_OUT_BELOW;
-  const rule = `Keep your voice at least +${target.deltaDb} dB above your baseline for ${target.holdSeconds} s.`;
+  const rule = L(
+    `기준보다 +${target.deltaDb}dB 이상 크게 ${target.holdSeconds}초 동안 소리를 이어 가세요.`,
+    `Keep your voice at least +${target.deltaDb} dB above your baseline for ${target.holdSeconds} s.`,
+  );
 
   return (
     <View style={common.container}>
       <Text style={common.title}>{TITLE}</Text>
       <Text style={common.level}>
-        Level {props.level} / {MAX_LEVEL} · Practice #{props.roundIndex}
+        {L(`단계 ${props.level} / ${MAX_LEVEL} · ${props.roundIndex}번째 연습`, `Level ${props.level} / ${MAX_LEVEL} · Practice #${props.roundIndex}`)}
       </Text>
       <LevelBadge level={props.level} maxPhonationTimeS={props.baselines.maxPhonationTimeS} />
 
@@ -38,9 +43,9 @@ export function CandleGameScreen(props: BalloonGameProps) {
         <ResultPanel run={lastRun} target={target} onContinue={round.confirm} />
       ) : (
         <Text style={common.guide}>
-          {phase === 'ready' && `Say "ahh" and keep going so the candle doesn't go out. ${rule}`}
-          {phase === 'playing' && `Keep the candle lit. ${rule}`}
-          {phase === 'ending' && (state.passed ? 'You reached the goal! 🎉' : 'Great effort! 👏')}
+          {phase === 'ready' && `${L('"아~" 소리를 이어 내서 촛불이 꺼지지 않게 해 주세요.', "Say \"ahh\" and keep going so the candle doesn't go out.")} ${rule}`}
+          {phase === 'playing' && `${L('촛불을 지켜 주세요.', 'Keep the candle lit.')} ${rule}`}
+          {phase === 'ending' && (state.passed ? L('목표 달성! 🎉', 'You reached the goal! 🎉') : L('잘했어요! 👏', 'Great effort! 👏'))}
         </Text>
       )}
 
@@ -72,20 +77,25 @@ export function CandleGameScreen(props: BalloonGameProps) {
       {phase === 'playing' && (
         <View>
           <Text style={common.info}>
-            Vs. baseline: {round.dbDiff >= 0 ? '+' : ''}
+            {L('기준 대비', 'Vs. baseline')}: {round.dbDiff >= 0 ? '+' : ''}
             {round.dbDiff.toFixed(1)} dB
           </Text>
           <Text style={common.info}>
-            Held {state.holdTime.toFixed(1)} / {target.holdSeconds} s · {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)} s left
+            {L(
+              `유지 ${state.holdTime.toFixed(1)} / ${target.holdSeconds}초 · ${Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)}초 남음`,
+              `Held ${state.holdTime.toFixed(1)} / ${target.holdSeconds} s · ${Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)} s left`,
+            )}
           </Text>
-          {lit && <Text style={common.info}>Flame temperature ≈ {flameKelvin(heat)} K</Text>}
+          {lit && <Text style={common.info}>
+              {L('불꽃 온도', 'Flame temperature')} ≈ {flameKelvin(heat)} K
+            </Text>}
         </View>
       )}
 
       {phase !== 'finished' && phase !== 'ending' && (
         <View style={common.buttons}>
-          {phase === 'ready' && <Button label="Start" onPress={round.start} />}
-          <Button label="Exit" onPress={round.exit} light />
+          {phase === 'ready' && <Button label={L('시작', 'Start')} onPress={round.start} />}
+          <Button label={L('나가기', 'Exit')} onPress={round.exit} light />
         </View>
       )}
     </View>

@@ -11,32 +11,47 @@ import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { domains } from '@/data/domains';
 import type { Decision } from '@/session';
+import { L, useLang } from '@/i18n';
 import { colors, spacing } from '@/theme';
 import { passRateFor, reportsPassed, roundPassed, summarizeRun } from '@/training/progress';
 import { useTraining } from '@/training/TrainingProvider';
 
-const DECISION_TEXT: Record<Decision, string> = {
-  up: '다음 라운드는 한 단계 올라가요',
-  down: '다음 라운드는 한 단계 쉬워져요',
-  hold: '다음 라운드도 같은 단계예요',
-  deferred: '이번 라운드는 판정을 미뤘어요',
-};
+function decisionText(decision: Decision): string {
+  switch (decision) {
+    case 'up':
+      return L('다음 라운드는 한 단계 올라가요', 'Next round goes up one level');
+    case 'down':
+      return L('다음 라운드는 한 단계 쉬워져요', 'Next round goes down one level');
+    case 'hold':
+      return L('다음 라운드도 같은 단계예요', 'Next round stays at this level');
+    default:
+      return L('이번 라운드는 판정을 미뤘어요', 'No level decision this round');
+  }
+}
 
 export default function GameCompleteScreen() {
+  useLang();
   const { lastRound } = useTraining();
 
   if (!lastRound) {
-    return <PlaceholderScreen title="게임 완료" description="표시할 라운드가 없어요." />;
+    return <PlaceholderScreen title={L('게임 완료', 'Round complete')} description={L('표시할 라운드가 없어요.', 'No round to show.')} />;
   }
 
   const { entry, run, nextLevel } = lastRound;
   const domain = domains.find((d) => d.id === entry.area) ?? domains[0];
   const passed = roundPassed(summarizeRun(run, entry.area));
+  const reason = entry.describeRun?.(run) ?? null;
 
   const metrics = [
-    { label: '성공률', value: `${Math.round(run.success_rate_pct)}`, unit: '%', target: reportsPassed(run) ? '게임 판정 기준' : `통과 ${passRateFor(entry.game)}% 이상`, ok: passed },
-    { label: '이번 단계', value: `${run.level}`, unit: `/ ${entry.maxLevel}`, target: `${run.round_index}번째 라운드`, ok: passed },
-    { label: '다음 단계', value: `${nextLevel}`, unit: `/ ${entry.maxLevel}`, target: DECISION_TEXT[run.decision], ok: passed },
+    {
+      label: L('성공률', 'Success rate'),
+      value: `${Math.round(run.success_rate_pct)}`,
+      unit: '%',
+      target: reportsPassed(run) ? L('게임 판정 기준', "Game's own criterion") : L(`통과 ${passRateFor(entry.game)}% 이상`, `Pass at ${passRateFor(entry.game)}%+`),
+      ok: passed,
+    },
+    { label: L('이번 단계', 'This level'), value: `${run.level}`, unit: `/ ${entry.maxLevel}`, target: L(`${run.round_index}번째 라운드`, `Round ${run.round_index}`), ok: passed },
+    { label: L('다음 단계', 'Next level'), value: `${nextLevel}`, unit: `/ ${entry.maxLevel}`, target: decisionText(run.decision), ok: passed },
   ];
 
   return (
@@ -44,13 +59,13 @@ export default function GameCompleteScreen() {
       header={<ScreenHeader title={entry.title} back={false} />}
       footer={
         <View style={styles.actions}>
-          <PrimaryButton label={`다음 라운드 (단계 ${nextLevel})`} onPress={() => router.replace(`/games/play/${entry.game}`)} />
+          <PrimaryButton label={L(`다음 라운드 (단계 ${nextLevel})`, `Next round (level ${nextLevel})`)} onPress={() => router.replace(`/games/play/${entry.game}`)} />
           <View style={styles.secondaryRow}>
             <Pressable onPress={() => router.dismissTo('/games')} hitSlop={8}>
-              <Text style={styles.secondary}>다른 게임</Text>
+              <Text style={styles.secondary}>{L('다른 게임', 'Other games')}</Text>
             </Pressable>
             <Pressable onPress={() => router.replace('/session/finishing')} hitSlop={8}>
-              <Text style={styles.secondary}>오늘 훈련 끝</Text>
+              <Text style={styles.secondary}>{L('오늘 훈련 끝', 'Finish for today')}</Text>
             </Pressable>
           </View>
         </View>
@@ -60,8 +75,8 @@ export default function GameCompleteScreen() {
         <View style={[styles.icon, { backgroundColor: domain.tint }]}>
           <MaterialCommunityIcons name={domain.icon} size={56} color={domain.color} />
         </View>
-        <Text style={styles.title}>{passed ? '게임을 완료했어요!' : '아쉬워요, 다시 해볼까요?'}</Text>
-        <Text style={styles.sub}>{passed ? '지금처럼만 꾸준히 연습해요!' : '목표에 조금 못 미쳤어요. 한 번 더 도전해봐요!'}</Text>
+        <Text style={styles.title}>{passed ? L('게임을 완료했어요!', 'Round complete!') : L('아쉬워요, 다시 해볼까요?', 'So close. Try again?')}</Text>
+        <Text style={styles.sub}>{passed ? L('지금처럼만 꾸준히 연습해요!', 'Keep practicing like this!') : L('목표에 조금 못 미쳤어요. 한 번 더 도전해봐요!', 'Just short of the goal. Give it another go!')}</Text>
       </View>
 
       <Card>
@@ -84,7 +99,7 @@ export default function GameCompleteScreen() {
             ) : null}
           </View>
         ))}
-        {run.decision_reason ? <Text style={styles.reason}>{run.decision_reason}</Text> : null}
+        {reason ? <Text style={styles.reason}>{reason}</Text> : null}
       </Card>
     </Screen>
   );

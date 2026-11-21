@@ -11,22 +11,13 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { SegmentedTabs } from '@/components/SegmentedTabs';
 import { domains } from '@/data/domains';
 import { patient, sessionRecords } from '@/data/mock';
+import { L, useLang } from '@/i18n';
 import { colors, radius, spacing } from '@/theme';
 import { useTraining } from '@/training/TrainingProvider';
 import { sessionRows, useHistory } from '@/training/useHistory';
 
 type Source = 'real' | 'demo';
 type ClinicianView = 'trend' | 'sessions';
-
-const sourceOptions: { value: Source; label: string }[] = [
-  { value: 'real', label: '실제 기록' },
-  { value: 'demo', label: '데모 데이터' },
-];
-
-const viewOptions: { value: ClinicianView; label: string }[] = [
-  { value: 'trend', label: '지표 추이' },
-  { value: 'sessions', label: '회차별 기록' },
-];
 
 interface Row {
   session: number;
@@ -42,6 +33,16 @@ function formatDate(iso: string): string {
 }
 
 export default function ClinicianScreen() {
+  useLang();
+  const sourceOptions: { value: Source; label: string }[] = [
+    { value: 'real', label: L('실제 기록', 'Real records') },
+    { value: 'demo', label: L('데모 데이터', 'Demo data') },
+  ];
+  const viewOptions: { value: ClinicianView; label: string }[] = [
+    { value: 'trend', label: L('지표 추이', 'Trends') },
+    { value: 'sessions', label: L('회차별 기록', 'By session') },
+  ];
+  const sessionName = (n: number) => L(`${n}회차`, `S${n}`);
   const [source, setSource] = useState<Source>('real');
   const [view, setView] = useState<ClinicianView>('sessions');
   const { userKey } = useTraining();
@@ -64,7 +65,8 @@ export default function ClinicianScreen() {
   const rows = source === 'real' ? realRows : demoRows;
   const demo = source === 'demo';
 
-  const empty = loading ? '불러오는 중…' : (error ?? '아직 서버 기록이 없어요.');
+  const empty = loading ? L('불러오는 중…', 'Loading…') : (error ?? L('아직 서버 기록이 없어요.', 'No server records yet.'));
+  const xLabels = rows.length > 1 ? [sessionName(1), sessionName(rows.length)] : [sessionName(1)];
   const series = (pick: (r: Row) => number | null) => rows.map(pick).filter((v): v is number => v !== null);
   const show = (v: number | null, digits: number, unit = '') => (v === null ? '–' : `${v.toFixed(digits)}${unit}`);
 
@@ -72,8 +74,8 @@ export default function ClinicianScreen() {
     <Screen
       header={
         <ScreenHeader
-          title="임상 기록"
-          right={rows.length > 0 ? <Text style={styles.range}>{`1회차 ~ ${rows.length}회차`}</Text> : undefined}
+          title={L('임상 기록', 'Clinical records')}
+          right={rows.length > 0 ? <Text style={styles.range}>{`${sessionName(1)} ~ ${sessionName(rows.length)}`}</Text> : undefined}
         />
       }
     >
@@ -81,7 +83,9 @@ export default function ClinicianScreen() {
       {demo ? (
         <View style={styles.demoBadge}>
           <Ionicons name="information-circle" size={16} color={colors.warning} />
-          <Text style={styles.demoText}>데모 데이터예요. 시연용 가짜 기록입니다.</Text>
+          <Text style={styles.demoText}>
+            {L('데모 데이터예요. 시연용 가짜 기록입니다.', 'Demo data: sample records for demonstration.')}
+          </Text>
         </View>
       ) : null}
 
@@ -96,13 +100,19 @@ export default function ClinicianScreen() {
                 {patient.name} ({patient.sex}/{patient.age})
               </Text>
               <Text style={styles.meta}>{patient.diagnosis}</Text>
-              <Text style={styles.meta}>시작일 {patient.startedAt}</Text>
+              <Text style={styles.meta}>
+                {L('시작일', 'Started')} {patient.startedAt}
+              </Text>
             </>
           ) : (
             <>
-              <Text style={styles.name}>이 기기 사용자</Text>
-              <Text style={styles.meta}>사용자 ID {userKey ? `${userKey.slice(0, 8)}…` : '–'}</Text>
-              <Text style={styles.meta}>시작일 {realRows[0]?.date ?? '–'}</Text>
+              <Text style={styles.name}>{L('이 기기 사용자', 'User of this device')}</Text>
+              <Text style={styles.meta}>
+                {L('사용자 ID', 'User ID')} {userKey ? `${userKey.slice(0, 8)}…` : '–'}
+              </Text>
+              <Text style={styles.meta}>
+                {L('시작일', 'Started')} {realRows[0]?.date ?? '–'}
+              </Text>
             </>
           )}
         </View>
@@ -117,10 +127,10 @@ export default function ClinicianScreen() {
       ) : view === 'sessions' ? (
         <Card>
           <View style={[styles.tableRow, styles.tableHead]}>
-            <HeadCell title="회차" />
-            <HeadCell title="음량 변화" unit="(dB)" />
-            <HeadCell title="말 속도" unit="(음절/초)" />
-            <HeadCell title="무음 비율" unit="(%)" />
+            <HeadCell title={L('회차', 'Session')} />
+            <HeadCell title={L('음량 변화', 'Level change')} unit="(dB)" />
+            <HeadCell title={L('말 속도', 'Rate')} unit={L('(음절/초)', '(syll/s)')} />
+            <HeadCell title={L('무음 비율', 'Pause ratio')} unit="(%)" />
           </View>
           {rows.map((r) => (
             <View key={`${r.session}-${r.date}`} style={styles.tableRow}>
@@ -134,12 +144,12 @@ export default function ClinicianScreen() {
       ) : (
         <Card>
           <LineChart
-            series={[{ label: '음량 변화', color: domains[0].color, values: series((r) => r.levelChange) }]}
-            xLabels={rows.length > 1 ? ['1회차', `${rows.length}회차`] : ['1회차']}
+            series={[{ label: L('음량 변화', 'Level change'), color: domains[0].color, values: series((r) => r.levelChange) }]}
+            xLabels={xLabels}
           />
           <LineChart
-            series={[{ label: '말 속도', color: domains[1].color, values: series((r) => r.rate) }]}
-            xLabels={rows.length > 1 ? ['1회차', `${rows.length}회차`] : ['1회차']}
+            series={[{ label: L('말 속도', 'Speech rate'), color: domains[1].color, values: series((r) => r.rate) }]}
+            xLabels={xLabels}
           />
         </Card>
       )}

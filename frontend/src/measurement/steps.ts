@@ -1,4 +1,7 @@
 // 측정 블록 단계와 시간 값. 숫자는 모두 초기값이다.
+// 평가 문장은 한국어 모델로 점수를 내므로 언어 설정과 상관없이 한국어로 둔다.
+
+import { L } from '../i18n/lang';
 
 export const EVAL_SENTENCE = {
   id: 's1',
@@ -25,26 +28,71 @@ export interface StepSpec {
 export const STEP_SPECS: Record<StepId, StepSpec> = {
   glide: {
     id: 'glide',
-    title: '목소리 높낮이 재기',
-    guide: '낮은 소리에서 높은 소리로, 미끄러지듯 "아~" 해 주세요.',
+    get title() {
+      return L('목소리 높낮이 재기', 'Pitch range');
+    },
+    get guide() {
+      return L('낮은 소리에서 높은 소리로, 미끄러지듯 "아~" 해 주세요.', 'Say "Ahh~", gliding smoothly from a low to a high pitch.');
+    },
     maxS: 10,
     silenceStopS: 1.5,
     minVoiceS: 1,
   },
   noise: {
     id: 'noise',
-    title: '조용히 있기',
-    guide: '2초 동안 아무 소리도 내지 말고 조용히 있어 주세요.',
+    get title() {
+      return L('조용히 있기', 'Stay quiet');
+    },
+    get guide() {
+      return L('2초 동안 아무 소리도 내지 말고 조용히 있어 주세요.', 'Please stay silent for 2 seconds.');
+    },
     fixedS: 2.5,
     maxS: 2.5,
   },
-  mpt1: { id: 'mpt1', title: '"아" 길게 1번째', guide: '편한 크기로 "아~"를 최대한 길게 해 주세요.', maxS: 60, silenceStopS: 1.5, minVoiceS: 0.3 },
-  mpt2: { id: 'mpt2', title: '"아" 길게 2번째', guide: '한 번 더, 편한 크기로 "아~"를 최대한 길게 해 주세요.', maxS: 60, silenceStopS: 1.5, minVoiceS: 0.3 },
-  mpt3: { id: 'mpt3', title: '"아" 길게 3번째', guide: '마지막으로 "아~"를 최대한 길게 해 주세요. 힘들면 건너뛰어도 돼요.', maxS: 60, silenceStopS: 1.5, minVoiceS: 0.3 },
+  mpt1: {
+    id: 'mpt1',
+    get title() {
+      return L('"아" 길게 1번째', 'Long "Ah" #1');
+    },
+    get guide() {
+      return L('편한 크기로 "아~"를 최대한 길게 해 주세요.', 'Say "Ahh~" at a comfortable loudness for as long as you can.');
+    },
+    maxS: 60,
+    silenceStopS: 1.5,
+    minVoiceS: 0.3,
+  },
+  mpt2: {
+    id: 'mpt2',
+    get title() {
+      return L('"아" 길게 2번째', 'Long "Ah" #2');
+    },
+    get guide() {
+      return L('한 번 더, 편한 크기로 "아~"를 최대한 길게 해 주세요.', 'Once more: say "Ahh~" at a comfortable loudness for as long as you can.');
+    },
+    maxS: 60,
+    silenceStopS: 1.5,
+    minVoiceS: 0.3,
+  },
+  mpt3: {
+    id: 'mpt3',
+    get title() {
+      return L('"아" 길게 3번째', 'Long "Ah" #3');
+    },
+    get guide() {
+      return L('마지막으로 "아~"를 최대한 길게 해 주세요. 힘들면 건너뛰어도 돼요.', 'Last one: say "Ahh~" for as long as you can. You may skip it if it is too hard.');
+    },
+    maxS: 60,
+    silenceStopS: 1.5,
+    minVoiceS: 0.3,
+  },
   sentence: {
     id: 'sentence',
-    title: '문장 읽기',
-    guide: '아래 문장을 평소처럼 읽어 주세요.',
+    get title() {
+      return L('문장 읽기', 'Read a sentence');
+    },
+    get guide() {
+      return L('아래 문장을 평소처럼 읽어 주세요.', 'Read the Korean sentence below as you normally speak.');
+    },
     maxS: 30,
     silenceStopS: 2,
     minVoiceS: 1,

@@ -5,16 +5,18 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { MAX_LEVEL, ROUND_SECONDS } from './balloonLogic';
+import { L, useLang } from '../../i18n';
 import type { BalloonGameProps } from './gameProps';
 import { Button, common, LevelBadge, NoticeFrame, ResultPanel } from './RoundPanel';
 import { ENDING_MS, useBalloonRound } from './useBalloonRound';
 
-const TITLE = 'Blow Up the Balloon';
 const BALLOON_MIN_SCALE = 0.3;
 const BALLOON_MAX_SCALE = 1.6;
 const BALLOON_BASE_SIZE = 160;
 
 export function BalloonGameScreen(props: BalloonGameProps) {
+  useLang();
+  const TITLE = L('풍선 불기', 'Blow Up the Balloon');
   const round = useBalloonRound({ ...props, game: 'balloon' });
   const { phase, state, target, lastRun } = round;
 
@@ -36,13 +38,16 @@ export function BalloonGameScreen(props: BalloonGameProps) {
 
   const notice = NoticeFrame({ title: TITLE, phase, error: round.error, onExit: round.exit });
   if (notice) return notice;
-  const rule = `Keep your voice at least +${target.deltaDb} dB above your baseline for ${target.holdSeconds} s.`;
+  const rule = L(
+    `기준보다 +${target.deltaDb}dB 이상 크게 ${target.holdSeconds}초 동안 소리를 이어 가세요.`,
+    `Keep your voice at least +${target.deltaDb} dB above your baseline for ${target.holdSeconds} s.`,
+  );
 
   return (
     <View style={common.container}>
       <Text style={common.title}>{TITLE}</Text>
       <Text style={common.level}>
-        Level {props.level} / {MAX_LEVEL} · Practice #{props.roundIndex}
+        {L(`단계 ${props.level} / ${MAX_LEVEL} · ${props.roundIndex}번째 연습`, `Level ${props.level} / ${MAX_LEVEL} · Practice #${props.roundIndex}`)}
       </Text>
       <LevelBadge level={props.level} maxPhonationTimeS={props.baselines.maxPhonationTimeS} />
 
@@ -51,9 +56,9 @@ export function BalloonGameScreen(props: BalloonGameProps) {
       ) : (
         <>
           <Text style={common.guide}>
-            {phase === 'ready' && `Say "ahh" out loud. ${rule}`}
+            {phase === 'ready' && `${L('"아~" 소리를 내 보세요.', 'Say "ahh" out loud.')} ${rule}`}
             {phase === 'playing' && rule}
-            {phase === 'ending' && (state.passed ? 'You reached the goal! 🎉' : 'Great effort! 👏')}
+            {phase === 'ending' && (state.passed ? L('목표 달성! 🎉', 'You reached the goal! 🎉') : L('잘했어요! 👏', 'Great effort! 👏'))}
           </Text>
 
           <View style={s.balloonArea}>
@@ -63,19 +68,22 @@ export function BalloonGameScreen(props: BalloonGameProps) {
           {phase === 'playing' && (
             <View>
               <Text style={common.info}>
-                Vs. baseline: {round.dbDiff >= 0 ? '+' : ''}
+                {L('기준 대비', 'Vs. baseline')}: {round.dbDiff >= 0 ? '+' : ''}
                 {round.dbDiff.toFixed(1)} dB
               </Text>
               <Text style={common.info}>
-                Held {state.holdTime.toFixed(1)} / {target.holdSeconds} s · {Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)} s left
+                {L(
+              `유지 ${state.holdTime.toFixed(1)} / ${target.holdSeconds}초 · ${Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)}초 남음`,
+              `Held ${state.holdTime.toFixed(1)} / ${target.holdSeconds} s · ${Math.max(0, ROUND_SECONDS - state.elapsed).toFixed(0)} s left`,
+            )}
               </Text>
             </View>
           )}
 
           {phase !== 'ending' && (
             <View style={common.buttons}>
-              {phase === 'ready' && <Button label="Start" onPress={round.start} />}
-              <Button label="Exit" onPress={round.exit} light />
+              {phase === 'ready' && <Button label={L('시작', 'Start')} onPress={round.start} />}
+              <Button label={L('나가기', 'Exit')} onPress={round.exit} light />
             </View>
           )}
         </>

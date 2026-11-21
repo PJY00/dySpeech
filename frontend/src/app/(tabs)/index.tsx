@@ -10,8 +10,9 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Screen } from '@/components/Screen';
 import { domains } from '@/data/domains';
+import { L, useLang } from '@/i18n';
 import { colors, spacing } from '@/theme';
-import { formatMeasurement, METRIC_LABELS } from '@/training/labels';
+import { formatMeasurement, metricLabel } from '@/training/labels';
 import { useTraining } from '@/training/TrainingProvider';
 import { findMetric, useHistory } from '@/training/useHistory';
 
@@ -21,6 +22,7 @@ let devShortcutOpened = false;
 let resumeAsked = false;
 
 export default function HomeScreen() {
+  useLang();
   const { ready, completed, unfinished, trainedToday, startTraining } = useTraining();
   const { history } = useHistory();
 
@@ -43,7 +45,7 @@ export default function HomeScreen() {
       header={
         <View style={styles.topBar}>
           <Text style={styles.logoText}>dySpeech</Text>
-          <Pressable onPress={() => router.navigate('/settings')} hitSlop={12} accessibilityLabel="설정">
+          <Pressable onPress={() => router.navigate('/settings')} hitSlop={12} accessibilityLabel={L('설정', 'Settings')}>
             <Ionicons name="settings-outline" size={22} color={colors.text} />
           </Pressable>
         </View>
@@ -54,17 +56,17 @@ export default function HomeScreen() {
           <Ionicons name="person" size={28} color={colors.primary} />
         </View>
         <View style={styles.greetingText}>
-          <Text style={styles.hello}>안녕하세요!</Text>
-          <Text style={styles.hello}>오늘도 멋진 하루예요</Text>
-          <Text style={styles.sub}>지금 바로 훈련을 시작해볼까요?</Text>
+          <Text style={styles.hello}>{L('안녕하세요!', 'Hello!')}</Text>
+          <Text style={styles.hello}>{L('오늘도 멋진 하루예요', 'Have a great day')}</Text>
+          <Text style={styles.sub}>{L('지금 바로 훈련을 시작해볼까요?', 'Shall we start training now?')}</Text>
         </View>
       </View>
 
       <Card>
         <View style={styles.rowBetween}>
-          <Text style={styles.sectionTitle}>오늘의 훈련 현황</Text>
+          <Text style={styles.sectionTitle}>{L('오늘의 훈련 현황', "Today's training")}</Text>
           <Pressable onPress={() => router.navigate('/records')} hitSlop={8}>
-            <Text style={styles.link}>상세보기 ›</Text>
+            <Text style={styles.link}>{L('상세보기 ›', 'Details ›')}</Text>
           </Pressable>
         </View>
         <View style={styles.summary}>
@@ -74,7 +76,7 @@ export default function HomeScreen() {
             return (
               <Metric
                 key={domain.id}
-                label={METRIC_LABELS[domain.metrics[0]]}
+                label={metricLabel(domain.metrics[0])}
                 value={m?.latest ? formatMeasurement({ value: m.latest.value, unit: m.unit, low_reliability: false }) : '–'}
               />
             );
@@ -83,13 +85,13 @@ export default function HomeScreen() {
       </Card>
 
       <PrimaryButton
-        label={trainedToday ? '오늘 훈련을 마쳤어요' : '훈련 시작하기'}
+        label={trainedToday ? L('오늘 훈련을 마쳤어요', "Today's training is done") : L('훈련 시작하기', 'Start training')}
         chevron={!trainedToday}
         onPress={() => void startTraining('/games')}
       />
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>게임 선택하기</Text>
+        <Text style={styles.sectionTitle}>{L('게임 선택하기', 'Choose a game')}</Text>
         {domains.map((domain) => (
           <DomainCard key={domain.id} domain={domain} onPress={() => void startTraining(`/games/${domain.id}`)} />
         ))}

@@ -1,10 +1,16 @@
 // 임상가 화면(데모)용 임시 데이터. 임상가 화면은 서버 역할·인증이 정해지기 전까지 데모로 둔다.
 
+import { L } from '@/i18n/lang';
+
 export const patient = {
-  name: '홍길동',
+  get name() {
+    return L('홍길동', 'Gildong Hong');
+  },
   sex: 'M',
   age: 68,
-  diagnosis: '뇌졸중 후 마비말장애',
+  get diagnosis() {
+    return L('뇌졸중 후 마비말장애', 'Post-stroke dysarthria');
+  },
   startedAt: '2026.10.30',
 };
 

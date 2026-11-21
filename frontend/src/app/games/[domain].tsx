@@ -12,25 +12,28 @@ import { findDomain } from '@/data/domains';
 import { gamesInArea } from '@/games/registry';
 import type { GameEntry } from '@/games/registry';
 import { isTempGame, tempGamesInArea } from '@/games/temp';
+import { L, useLang } from '@/i18n';
 import { colors, radius, spacing } from '@/theme';
 import { useTraining } from '@/training/TrainingProvider';
 
 export default function DomainGamesScreen() {
+  useLang();
   const { domain: domainId } = useLocalSearchParams<{ domain: string }>();
   const domain = findDomain(domainId);
 
   if (!domain) {
-    return <PlaceholderScreen title="게임" description="알 수 없는 영역입니다." />;
+    return <PlaceholderScreen title={L('게임', 'Games')} description={L('알 수 없는 영역입니다.', 'Unknown area.')} />;
   }
 
   // 등록된 실제 게임 뒤에 아직 연결되지 않은 게임의 임시 자리를 붙인다
+  const title = `${L('게임', 'Game')} ${domain.number} · ${domain.title}`;
   const games = [...gamesInArea(domain.id), ...tempGamesInArea(domain.id)];
   if (games.length === 0) {
-    return <PlaceholderScreen title={`게임 ${domain.number} · ${domain.title}`} description={`${domain.games}\n아직 연결된 게임이 없어요.`} />;
+    return <PlaceholderScreen title={title} description={`${domain.games}\n${L('아직 연결된 게임이 없어요.', 'No games connected yet.')}`} />;
   }
 
   return (
-    <Screen header={<ScreenHeader title={`게임 ${domain.number} · ${domain.title}`} />}>
+    <Screen header={<ScreenHeader title={title} />}>
       {games.map((entry) => (
         <GameCard key={entry.game} entry={entry} color={domain.color} tint={domain.tint} icon={domain.icon} />
       ))}
@@ -65,12 +68,12 @@ function GameCard({
         <View style={styles.text}>
           <Text style={styles.title}>
             {entry.title}
-            {isTempGame(entry) ? <Text style={styles.temp}> (임시)</Text> : null}
+            {isTempGame(entry) ? <Text style={styles.temp}> {L('(임시)', '(temp)')}</Text> : null}
           </Text>
           <Text style={styles.description}>{entry.description}</Text>
           {level !== null ? (
             <Text style={styles.level}>
-              단계 {level} / {entry.maxLevel}
+              {L('단계', 'Level')} {level} / {entry.maxLevel}
             </Text>
           ) : null}
         </View>

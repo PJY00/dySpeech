@@ -12,23 +12,34 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { MeasurementRecorder, prepareMicrophone } from '@/measurement';
 import { discardRecordingFile, RecordingRejected, startSession, uuidv4 } from '@/session';
 import type { AgcSignal, Session } from '@/session';
+import { L, useLang } from '@/i18n';
 import { colors, radius, spacing } from '@/theme';
 
-const SIGNALS: { signal: AgcSignal; title: string }[] = [
-  { signal: 'agc_steps', title: '시험 소리 1' },
-  { signal: 'agc_hold', title: '시험 소리 2' },
-  { signal: 'agc_toggle', title: '시험 소리 3' },
-];
+const SIGNALS: AgcSignal[] = ['agc_steps', 'agc_hold', 'agc_toggle'];
 
-const GUIDE = [
-  '헤드셋을 폰에 꽂고, 헤드셋 마이크를 노트북 스피커 앞에 두세요. 끝날 때까지 옮기지 않아요.',
-  '노트북 음량은 절반 정도로 두고 바꾸지 않아요. 이퀄라이저 같은 음향 효과는 꺼 주세요.',
-  '녹음 시작을 누르고 1초 뒤에 시험 소리를 트세요. 소리가 끝나고 1초 뒤에 녹음을 멈추세요.',
-];
+const signalTitle = (i: number) => L(`시험 소리 ${i + 1}`, `Test tone ${i + 1}`);
+
+function guide(): string[] {
+  return [
+    L(
+      '헤드셋을 폰에 꽂고, 헤드셋 마이크를 노트북 스피커 앞에 두세요. 끝날 때까지 옮기지 않아요.',
+      'Plug the headset into the phone and place its mic in front of the laptop speaker. Do not move it until the end.',
+    ),
+    L(
+      '노트북 음량은 절반 정도로 두고 바꾸지 않아요. 이퀄라이저 같은 음향 효과는 꺼 주세요.',
+      'Set the laptop volume to about half and leave it. Turn off sound effects such as an equalizer.',
+    ),
+    L(
+      '녹음 시작을 누르고 1초 뒤에 시험 소리를 트세요. 소리가 끝나고 1초 뒤에 녹음을 멈추세요.',
+      'Press start, then play the test tone 1 second later. Stop recording 1 second after the tone ends.',
+    ),
+  ];
+}
 
 type Stage = 'prepare' | 'ready' | 'recording' | 'saving' | 'sending';
 
 export default function PhoneCheckScreen() {
+  useLang();
   const [stage, setStage] = useState<Stage>('prepare');
   const [permission, setPermission] = useState<'checking' | 'granted' | 'denied'>('checking');
   const [index, setIndex] = useState(0);
@@ -78,12 +89,12 @@ export default function PhoneCheckScreen() {
     let fileUri: string | null = null;
     try {
       fileUri = (await recorder.current.stop()).fileUri;
-      const id = await session.current.addRecording({ kind: 'agc_tone', agcSignal: SIGNALS[index].signal, fileUri });
+      const id = await session.current.addRecording({ kind: 'agc_tone', agcSignal: SIGNALS[index], fileUri });
       recordingIds.current[index] = id;
       setIndex(index + 1);
     } catch (e) {
       if (fileUri) await discardRecordingFile(fileUri).catch(() => undefined);
-      setError(e instanceof RecordingRejected ? `녹음 파일 형식이 맞지 않아요: ${e.message}` : String(e));
+      setError(e instanceof RecordingRejected ? `${L('녹음 파일 형식이 맞지 않아요', 'Recording format is not valid')}: ${e.message}` : String(e));
     }
     setStage('ready');
   }
@@ -105,23 +116,28 @@ export default function PhoneCheckScreen() {
   }
 
   const done = index >= SIGNALS.length;
-  const current = SIGNALS[Math.min(index, SIGNALS.length - 1)];
+  const currentTitle = signalTitle(Math.min(index, SIGNALS.length - 1));
 
   let footer = null;
   if (stage === 'ready' && !done) {
-    footer = <PrimaryButton label={`${current.title} 녹음 시작`} chevron={false} onPress={() => void start()} />;
+    footer = <PrimaryButton label={L(`${currentTitle} 녹음 시작`, `Record ${currentTitle}`)} chevron={false} onPress={() => void start()} />;
   } else if (stage === 'recording') {
-    footer = <PrimaryButton label="녹음 멈춤" chevron={false} onPress={() => void stop()} />;
+    footer = <PrimaryButton label={L('녹음 멈춤', 'Stop recording')} chevron={false} onPress={() => void stop()} />;
   } else if (stage === 'ready' && done) {
-    footer = <PrimaryButton label="보내기" onPress={() => void send()} />;
+    footer = <PrimaryButton label={L('보내기', 'Send')} onPress={() => void send()} />;
   }
 
   return (
-    <Screen header={<ScreenHeader title="폰 점검" />} footer={footer ?? undefined}>
+    <Screen header={<ScreenHeader title={L('폰 점검', 'Phone check')} />} footer={footer ?? undefined}>
       <Card>
-        <Text style={styles.cardTitle}>폰마다 한 번, 5분 정도 걸려요</Text>
-        <Text style={styles.body}>폰이 소리 크기를 스스로 바꾸는지 확인해요. 시험 소리 파일 3개와 노트북이 필요해요.</Text>
-        {GUIDE.map((g, i) => (
+        <Text style={styles.cardTitle}>{L('폰마다 한 번, 5분 정도 걸려요', 'Once per phone, about 5 minutes')}</Text>
+        <Text style={styles.body}>
+          {L(
+            '폰이 소리 크기를 스스로 바꾸는지 확인해요. 시험 소리 파일 3개와 노트북이 필요해요.',
+            'Checks whether the phone changes the input level by itself. You need the 3 test tone files and a laptop.',
+          )}
+        </Text>
+        {guide().map((g, i) => (
           <View key={g} style={styles.guideRow}>
             <Text style={styles.guideNo}>{i + 1}</Text>
             <Text style={styles.guideText}>{g}</Text>
@@ -130,27 +146,29 @@ export default function PhoneCheckScreen() {
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>녹음</Text>
+        <Text style={styles.sectionTitle}>{L('녹음', 'Recordings')}</Text>
         {SIGNALS.map((s, i) => (
-          <View key={s.signal} style={styles.signalRow}>
+          <View key={s} style={styles.signalRow}>
             <Ionicons
               name={i < index ? 'checkmark-circle' : i === index && stage === 'recording' ? 'radio-button-on' : 'ellipse-outline'}
               size={20}
               color={i < index ? colors.success : i === index && stage === 'recording' ? '#B3261E' : colors.mutedText}
             />
-            <Text style={styles.signalText}>{s.title}</Text>
-            {i === index && stage === 'recording' ? <Text style={styles.timer}>{elapsed.toFixed(1)}초</Text> : null}
+            <Text style={styles.signalText}>{signalTitle(i)}</Text>
+            {i === index && stage === 'recording' ? <Text style={styles.timer}>{elapsed.toFixed(1)}{L('초', 's')}</Text> : null}
           </View>
         ))}
         {index > 0 && stage === 'ready' ? (
           <Pressable onPress={() => void redoLast()} hitSlop={8}>
-            <Text style={styles.redo}>{SIGNALS[index - 1].title} 다시 녹음</Text>
+            <Text style={styles.redo}>{L(`${signalTitle(index - 1)} 다시 녹음`, `Redo ${signalTitle(index - 1)}`)}</Text>
           </Pressable>
         ) : null}
       </Card>
 
       {permission === 'checking' || stage === 'saving' || stage === 'sending' ? <ActivityIndicator color={colors.primary} /> : null}
-      {permission === 'denied' ? <Text style={styles.warn}>마이크 권한이 필요해요. 설정에서 마이크를 허용해 주세요.</Text> : null}
+      {permission === 'denied' ? <Text style={styles.warn}>
+          {L('마이크 권한이 필요해요. 설정에서 마이크를 허용해 주세요.', 'Microphone permission is needed. Please allow it in Settings.')}
+        </Text> : null}
       {error ? <Text style={styles.warn}>{error}</Text> : null}
     </Screen>
   );

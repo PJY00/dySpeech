@@ -8,13 +8,15 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import type { SessionProgress } from '@/session';
+import { L, useLang } from '@/i18n';
 import { colors, spacing } from '@/theme';
-import { STATE_LABELS } from '@/training/labels';
+import { stateLabel } from '@/training/labels';
 import { useTraining } from '@/training/TrainingProvider';
 
 const RESULT_POLL_MS = 4000;
 
 export default function FinishingScreen() {
+  useLang();
   const { finish } = useTraining();
   const [progress, setProgress] = useState<SessionProgress | null>(null);
   const started = useRef(false);
@@ -47,19 +49,19 @@ export default function FinishingScreen() {
   return (
     <Screen
       scroll={false}
-      header={<ScreenHeader title="결과 기다리기" back={false} />}
-      footer={<PrimaryButton label="메인으로" chevron={false} onPress={goHome} />}
+      header={<ScreenHeader title={L('결과 기다리기', 'Waiting for results')} back={false} />}
+      footer={<PrimaryButton label={L('메인으로', 'Go home')} chevron={false} onPress={goHome} />}
     >
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.title}>결과를 기다리고 있어요</Text>
-        <Text style={styles.state}>{progress ? STATE_LABELS[progress.state] : '저장하는 중'}</Text>
+        <Text style={styles.title}>{L('결과를 기다리고 있어요', 'Waiting for your results')}</Text>
+        <Text style={styles.state}>{progress ? stateLabel(progress.state) : L('저장하는 중', 'Saving')}</Text>
         {progress && progress.total > 0 ? (
           <Text style={styles.note}>
-            녹음 올리기 {progress.uploaded} / {progress.total}
+            {L('녹음 올리기', 'Uploading recordings')} {progress.uploaded} / {progress.total}
           </Text>
         ) : null}
-        <Text style={styles.note}>앱을 닫아도 다음에 열 때 이어서 보내요.</Text>
+        <Text style={styles.note}>{L('앱을 닫아도 다음에 열 때 이어서 보내요.', 'If you close the app, sending resumes next time.')}</Text>
       </View>
     </Screen>
   );

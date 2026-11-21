@@ -1,5 +1,6 @@
 // 녹음마다 하는 검사와 분석(순수 함수). 화면은 결과로 "다음 / 다시 하기 / 이대로 쓰기"를 고른다.
 
+import { L } from '../i18n/lang';
 import type { HzRange } from '../session/types';
 import { decodePcm16, parseWav, WavError, wavProblems } from '../session/wav';
 import type { WavInfo } from '../session/wav';
@@ -40,10 +41,10 @@ export function checkRecording(step: StepId, bytes: Uint8Array, ctx: CheckContex
   try {
     info = parseWav(bytes);
   } catch (e) {
-    return { ok: false, fatal: true, message: `녹음 파일을 읽지 못했어요: ${e instanceof WavError ? e.message : String(e)}`, analysis: null };
+    return { ok: false, fatal: true, message: `${L('녹음 파일을 읽지 못했어요', 'Could not read the recording')}: ${e instanceof WavError ? e.message : String(e)}`, analysis: null };
   }
   const problems = wavProblems(info);
-  if (problems.length) return { ok: false, fatal: true, message: `녹음 파일 형식이 맞지 않아요: ${problems.join(' / ')}`, analysis: null };
+  if (problems.length) return { ok: false, fatal: true, message: `${L('녹음 파일 형식이 맞지 않아요', 'Recording format is not valid')}: ${problems.join(' / ')}`, analysis: null };
   // 서버와 같은 대역(60 Hz~8 kHz)에서 음량과 기본주파수를 잰다
   const samples = voiceBand(decodePcm16(bytes, info), info.sampleRate);
   const levels = frameLevels(samples, info.sampleRate);
@@ -54,20 +55,23 @@ export function checkRecording(step: StepId, bytes: Uint8Array, ctx: CheckContex
   if (step === 'noise') {
     const nf = median(levels);
     if (nf > NOISY_FLOOR_DBFS) {
-      return { ok: true, fatal: false, message: `주변이 조금 시끄러워요(${nf.toFixed(0)} dBFS). 조용한 곳이면 다시 해 주세요.`, analysis: base };
+      return { ok: true, fatal: false, message: L(
+          `주변이 조금 시끄러워요(${nf.toFixed(0)} dBFS). 조용한 곳이면 다시 해 주세요.`,
+          `It is a bit noisy (${nf.toFixed(0)} dBFS). Try again somewhere quieter.`,
+        ), analysis: base };
     }
-    return { ok: true, fatal: false, message: '좋아요.', analysis: base };
+    return { ok: true, fatal: false, message: L('좋아요.', 'Good.'), analysis: base };
   }
 
   if (step === 'glide') {
     const voiced = Array.from(levels, (l) => l > floor + VOICE_MARGIN_DB);
     const f0 = pitchTrack(samples, info.sampleRate, levels.length, DEFAULT_RANGE_HZ, voiced);
     const calibration = calibrationRange(f0);
-    if (!calibration) return { ok: false, fatal: false, message: '목소리 높낮이를 찾지 못했어요. 조금 더 길게 "아~" 해 주세요.', analysis: { ...base, f0 } };
+    if (!calibration) return { ok: false, fatal: false, message: L('목소리 높낮이를 찾지 못했어요. 조금 더 길게 "아~" 해 주세요.', 'Could not find your pitch. Please say "Ahh~" a little longer.'), analysis: { ...base, f0 } };
     return {
       ok: true,
       fatal: false,
-      message: `좋아요. ${calibration.min.toFixed(0)}~${calibration.max.toFixed(0)} Hz`,
+      message: `${L('좋아요.', 'Good.')} ${calibration.min.toFixed(0)}~${calibration.max.toFixed(0)} Hz`,
       analysis: { ...base, f0, calibration },
     };
   }
@@ -75,17 +79,17 @@ export function checkRecording(step: StepId, bytes: Uint8Array, ctx: CheckContex
   if (step === 'sentence') {
     const mask = speechMask(levels, floor);
     const speechS = mask.filter(Boolean).length * HOP_S;
-    if (speechS < MIN_SPEECH_S) return { ok: false, fatal: false, message: '목소리가 잘 들리지 않았어요. 조금 더 크게 읽어 주세요.', analysis: base };
+    if (speechS < MIN_SPEECH_S) return { ok: false, fatal: false, message: L('목소리가 잘 들리지 않았어요. 조금 더 크게 읽어 주세요.', 'Your voice was hard to hear. Please read a little louder.'), analysis: base };
     const f0 = pitchTrack(samples, info.sampleRate, levels.length, searchRange(ctx.calibration), mask);
-    return { ok: true, fatal: false, message: '좋아요.', analysis: { ...base, f0 } };
+    return { ok: true, fatal: false, message: L('좋아요.', 'Good.'), analysis: { ...base, f0 } };
   }
 
   // mpt1~3
   const p = longestPhonation(levels, floor);
   if (!p || p.durationS < MIN_PHONATION_S) {
-    return { ok: false, fatal: false, message: '"아" 소리가 짧거나 작았어요. 편한 크기로 길게 해 주세요.', analysis: base };
+    return { ok: false, fatal: false, message: L('"아" 소리가 짧거나 작았어요. 편한 크기로 길게 해 주세요.', 'The "Ah" was too short or quiet. Hold it longer at a comfortable loudness.'), analysis: base };
   }
-  return { ok: true, fatal: false, message: `좋아요. ${p.durationS.toFixed(1)}초`, analysis: base };
+  return { ok: true, fatal: false, message: L(`좋아요. ${p.durationS.toFixed(1)}초`, `Good. ${p.durationS.toFixed(1)} s`), analysis: base };
 }
 
 function percentileOf(values: ArrayLike<number>, p: number): number {

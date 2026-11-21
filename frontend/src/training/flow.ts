@@ -2,6 +2,7 @@
 // - 오늘 훈련: (첫 회차면 캘리브레이션) 측정 블록 → 게임 선택 → 라운드 반복 → 오늘 훈련 끝 → complete → 결과
 // - 반복 측정: 측정 블록 → complete → 결과
 
+import { L } from '../i18n/lang';
 import type { GameName } from './gameTypes';
 import type { Baselines, GameRun, Purpose } from '../session/types';
 
@@ -95,6 +96,6 @@ export function totalRounds(state: FlowState): number {
  */
 export function unfinishedOptions(session: { baselines(): Baselines | null }): { canSend: boolean; reason: string | null } {
   return session.baselines() === null
-    ? { canSend: false, reason: '측정을 끝내지 못한 회차는 보낼 수 없어요' }
+    ? { canSend: false, reason: L('측정을 끝내지 못한 회차는 보낼 수 없어요', 'A session without a finished measurement cannot be sent') }
     : { canSend: true, reason: null };
 }

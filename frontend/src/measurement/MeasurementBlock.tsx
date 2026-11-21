@@ -11,6 +11,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { L, useLang } from '@/i18n';
 import { colors, radius, spacing } from '@/theme';
 
 import { discardRecordingFile, readRecordingFile, RecordingRejected, uuidv4 } from '../session';
@@ -46,7 +47,8 @@ function recordingInput(step: StepId, fileUri: string): RecordingInput {
   return { kind: 'mpt_trial', trialNo: trialNo(step) ?? 1, fileUri };
 }
 
-export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel = '다음' }: MeasurementBlockProps) {
+export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel }: MeasurementBlockProps) {
+  useLang();
   const steps = useMemo(() => blockSteps(session.needsCalibration, trials), [session, trials]);
   const [phase, setPhase] = useState<Phase>('prepare');
   const [permission, setPermission] = useState<'checking' | 'granted' | 'denied'>('checking');
@@ -80,7 +82,12 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
         const input = await checkInputDevice();
         await session.setInputDevice(input.inputDevice);
         console.log('[measurement] input', JSON.stringify(input));
-        if (!input.wiredHeadset) setInputWarning('유선 헤드셋이 연결되지 않은 것 같아요. 유선 헤드셋을 쓰면 더 정확하게 잴 수 있어요.');
+        if (!input.wiredHeadset) setInputWarning(
+            L(
+              '유선 헤드셋이 연결되지 않은 것 같아요. 유선 헤드셋을 쓰면 더 정확하게 잴 수 있어요.',
+              'A wired headset does not seem to be connected. A wired headset gives more accurate measurements.',
+            ),
+          );
         recorder.current = new MeasurementRecorder();
       } catch (e) {
         fail(e);
@@ -158,7 +165,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
       await session.addRecording(recordingInput(step, uri));
     } catch (e) {
       if (e instanceof RecordingRejected) {
-        setCheck({ ok: false, fatal: true, message: `녹음 파일 형식이 맞지 않아요: ${e.message}`, analysis: null });
+        setCheck({ ok: false, fatal: true, message: `${L('녹음 파일 형식이 맞지 않아요', 'Recording format is not valid')}: ${e.message}`, analysis: null });
         return;
       }
       fail(e);
@@ -215,12 +222,12 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
 
   const header = (
     <ScreenHeader
-      title="목소리 측정"
+      title={L('목소리 측정', 'Voice check')}
       back={false}
       right={
         onCancel && stage !== 'recording' && phase !== 'computing' ? (
           <Pressable onPress={onCancel} hitSlop={8}>
-            <Text style={s.cancel}>그만하기</Text>
+            <Text style={s.cancel}>{L('그만하기', 'Quit')}</Text>
           </Pressable>
         ) : undefined
       }
@@ -233,7 +240,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
         header={header}
         footer={
           <PrimaryButton
-            label="이 단계 다시 하기"
+            label={L('이 단계 다시 하기', 'Redo this step')}
             chevron={false}
             onPress={() => {
               setPhase('steps');
@@ -245,7 +252,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
         <Card>
           <View style={s.messageRow}>
             <Ionicons name="alert-circle" size={22} color={WARN} />
-            <Text style={s.cardTitle}>문제가 생겼어요</Text>
+            <Text style={s.cardTitle}>{L('문제가 생겼어요', 'Something went wrong')}</Text>
           </View>
           <Text style={s.body}>{error}</Text>
         </Card>
@@ -257,16 +264,19 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
     return (
       <Screen
         header={header}
-        footer={permission === 'granted' ? <PrimaryButton label="측정 시작" onPress={() => setPhase('steps')} /> : undefined}
+        footer={permission === 'granted' ? <PrimaryButton label={L('측정 시작', 'Start')} onPress={() => setPhase('steps')} /> : undefined}
       >
         <Card>
-          <Text style={s.cardTitle}>오늘의 목소리를 재요</Text>
+          <Text style={s.cardTitle}>{L('오늘의 목소리를 재요', "Let's measure today's voice")}</Text>
           <Text style={s.body}>
-            {steps.length}가지를 차례로 녹음해요. 조용한 곳에서 유선 헤드셋을 쓰고, 마이크를 입에서 일정한 거리에 두세요.
+            {L(
+              `${steps.length}가지를 차례로 녹음해요. 조용한 곳에서 유선 헤드셋을 쓰고, 마이크를 입에서 일정한 거리에 두세요.`,
+              `You will record ${steps.length} items in order. Use a wired headset in a quiet place and keep the mic at a steady distance from your mouth.`,
+            )}
           </Text>
         </Card>
         <Card>
-          <Text style={s.sectionTitle}>측정 순서</Text>
+          <Text style={s.sectionTitle}>{L('측정 순서', 'Steps')}</Text>
           {steps.map((id, i) => (
             <View key={id} style={s.listRow}>
               <View style={s.listIcon}>
@@ -279,7 +289,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
           ))}
         </Card>
         {permission === 'checking' ? <ActivityIndicator size="large" color={colors.primary} /> : null}
-        {permission === 'denied' ? <Notice text="마이크 권한이 필요해요. 설정에서 마이크를 허용해 주세요." /> : null}
+        {permission === 'denied' ? <Notice text={L('마이크 권한이 필요해요. 설정에서 마이크를 허용해 주세요.', 'Microphone permission is needed. Please allow it in Settings.')} /> : null}
         {inputWarning ? <Notice text={inputWarning} /> : null}
       </Screen>
     );
@@ -290,7 +300,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
       <Screen header={header} scroll={false}>
         <View style={s.center}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={s.cardTitle}>결과를 계산하고 있어요</Text>
+          <Text style={s.cardTitle}>{L('결과를 계산하고 있어요', 'Calculating results')}</Text>
         </View>
       </Screen>
     );
@@ -298,26 +308,31 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
 
   if (phase === 'summary' && summary) {
     const b = summary.baselines;
-    const show = (v: number | null, unit: string, digits = 1) => (v === null ? '구하지 못함' : `${v.toFixed(digits)} ${unit}`);
+    const show = (v: number | null, unit: string, digits = 1) => (v === null ? L('구하지 못함', 'n/a') : `${v.toFixed(digits)} ${unit}`);
     return (
-      <Screen header={header} footer={<PrimaryButton label={doneLabel} onPress={() => onDone(b)} />}>
+      <Screen header={header} footer={<PrimaryButton label={doneLabel ?? L('다음', 'Next')} onPress={() => onDone(b)} />}>
         <View style={s.hero}>
           <View style={s.heroIcon}>
             <Ionicons name="checkmark" size={40} color={colors.primary} />
           </View>
-          <Text style={s.heroTitle}>측정이 끝났어요</Text>
-          <Text style={s.heroSub}>오늘의 기준값을 저장했어요.</Text>
+          <Text style={s.heroTitle}>{L('측정이 끝났어요', 'Measurement done')}</Text>
+          <Text style={s.heroSub}>{L('오늘의 기준값을 저장했어요.', "Today's baselines are saved.")}</Text>
         </View>
         <Card>
-          <Text style={s.sectionTitle}>오늘의 기준값</Text>
-          <Row label="잡음 바닥" value={show(b.noiseFloorDbfs, 'dBFS')} />
-          <Row label='"아" 음량' value={show(b.sustainedLevelDbfs, 'dBFS')} />
-          <Row label="최대발성지속시간" value={show(b.maxPhonationTimeS, '초')} />
-          <Row label="조음속도" value={show(b.articulationRateSps, '음절/초')} />
-          <Row label="기본주파수 중앙값" value={show(b.f0MedianHz, 'Hz', 0)} />
-          <Row label="기본주파수 탐색 범위" value={`${b.f0SearchRangeHz.min.toFixed(0)}~${b.f0SearchRangeHz.max.toFixed(0)} Hz`} />
+          <Text style={s.sectionTitle}>{L('오늘의 기준값', "Today's baselines")}</Text>
+          <Row label={L('잡음 바닥', 'Noise floor')} value={show(b.noiseFloorDbfs, 'dBFS')} />
+          <Row label={L('"아" 음량', '"Ah" level')} value={show(b.sustainedLevelDbfs, 'dBFS')} />
+          <Row label={L('최대발성지속시간', 'Max phonation time')} value={show(b.maxPhonationTimeS, L('초', 's'))} />
+          <Row label={L('조음속도', 'Articulation rate')} value={show(b.articulationRateSps, L('음절/초', 'syll/s'))} />
+          <Row label={L('기본주파수 중앙값', 'Median F0')} value={show(b.f0MedianHz, 'Hz', 0)} />
+          <Row label={L('기본주파수 탐색 범위', 'F0 search range')} value={`${b.f0SearchRangeHz.min.toFixed(0)}~${b.f0SearchRangeHz.max.toFixed(0)} Hz`} />
         </Card>
-        <Text style={s.note}>기기에서 계산한 값이에요. 공식 값은 서버가 계산해요. 음량은 상대값(dBFS)이에요.</Text>
+        <Text style={s.note}>
+          {L(
+            '기기에서 계산한 값이에요. 공식 값은 서버가 계산해요. 음량은 상대값(dBFS)이에요.',
+            'Values computed on the device. Official values come from the server. Levels are relative (dBFS).',
+          )}
+        </Text>
         {summary.notes.map((n) => (
           <Text key={n} style={s.note}>
             · {n}
@@ -335,22 +350,22 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
   if (stage === 'intro') {
     footer = (
       <View style={s.actions}>
-        <PrimaryButton label={step === 'noise' ? '조용히 시작' : '녹음 시작'} chevron={false} onPress={() => void startRecording()} />
-        {step === 'mpt3' ? <TextButton label="건너뛰기" onPress={() => void next()} /> : null}
+        <PrimaryButton label={step === 'noise' ? L('조용히 시작', 'Start silence') : L('녹음 시작', 'Start recording')} chevron={false} onPress={() => void startRecording()} />
+        {step === 'mpt3' ? <TextButton label={L('건너뛰기', 'Skip')} onPress={() => void next()} /> : null}
       </View>
     );
   } else if (stage === 'recording' && spec.fixedS === undefined) {
-    footer = <PrimaryButton label={step === 'sentence' ? '다 읽었어요' : '그만'} chevron={false} onPress={() => void stopRecording()} />;
+    footer = <PrimaryButton label={step === 'sentence' ? L('다 읽었어요', 'Done reading') : L('그만', 'Stop')} chevron={false} onPress={() => void stopRecording()} />;
   } else if (stage === 'result' && check) {
     footer = check.ok ? (
       <View style={s.actions}>
-        <PrimaryButton label="다음" onPress={() => void accept()} />
-        <TextButton label="다시 하기" onPress={() => void retry()} />
+        <PrimaryButton label={L('다음', 'Next')} onPress={() => void accept()} />
+        <TextButton label={L('다시 하기', 'Retry')} onPress={() => void retry()} />
       </View>
     ) : (
       <View style={s.actions}>
-        <PrimaryButton label="다시 하기" chevron={false} onPress={() => void retry()} />
-        {!check.fatal && check.analysis ? <TextButton label="이대로 쓰기" onPress={() => void accept()} /> : null}
+        <PrimaryButton label={L('다시 하기', 'Retry')} chevron={false} onPress={() => void retry()} />
+        {!check.fatal && check.analysis ? <TextButton label={L('이대로 쓰기', 'Use as is')} onPress={() => void accept()} /> : null}
       </View>
     );
   }
@@ -359,7 +374,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
     <Screen header={header} footer={footer ?? undefined}>
       <View style={s.progressRow}>
         <Text style={s.progressText}>
-          {index + 1} / {steps.length} 단계
+          {L(`${index + 1} / ${steps.length} 단계`, `Step ${index + 1} / ${steps.length}`)}
         </Text>
         <View style={s.progressTrack}>
           {steps.map((id, i) => (
@@ -387,12 +402,12 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
         <Card>
           <View style={s.messageRow}>
             <View style={s.recDot} />
-            <Text style={s.cardTitle}>녹음 중</Text>
+            <Text style={s.cardTitle}>{L('녹음 중', 'Recording')}</Text>
           </View>
           <View style={s.meterTrack}>
             <View style={[s.meterFill, { width: `${Math.round(meter * 100)}%` }]} />
           </View>
-          <Text style={s.timer}>{remaining !== null ? `${remaining.toFixed(1)}초 남음` : `${elapsed.toFixed(1)}초`}</Text>
+          <Text style={s.timer}>{remaining !== null ? L(`${remaining.toFixed(1)}초 남음`, `${remaining.toFixed(1)} s left`) : `${elapsed.toFixed(1)}${L('초', ' s')}`}</Text>
         </Card>
       ) : null}
 
@@ -400,7 +415,7 @@ export function MeasurementBlock({ session, onDone, onCancel, trials, doneLabel 
         <Card>
           <View style={s.messageRow}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={s.body}>녹음을 확인하고 있어요</Text>
+            <Text style={s.body}>{L('녹음을 확인하고 있어요', 'Checking the recording')}</Text>
           </View>
         </Card>
       ) : null}

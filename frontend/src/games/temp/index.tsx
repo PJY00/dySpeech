@@ -9,6 +9,7 @@ import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { uuidv4 } from '@/session';
 import type { Decision } from '@/session';
+import { L, useLang } from '@/i18n';
 import { colors, spacing } from '@/theme';
 import type { GameArea, GameEntry, GameName, GameProps } from '@/training/gameTypes';
 import { findGame } from '../registry';
@@ -17,16 +18,18 @@ export type TempGameEntry = GameEntry & { temp: true };
 
 const TEMP_MAX_LEVEL = 5;
 
-const OUTCOMES: { label: string; success: number; decision: Decision }[] = [
-  { label: '통과 · 다음 단계로 올림', success: 100, decision: 'up' },
-  { label: '통과 · 같은 단계 유지', success: 85, decision: 'hold' },
-  { label: '실패 · 같은 단계 유지', success: 60, decision: 'hold' },
-  { label: '실패 · 한 단계 내림', success: 30, decision: 'down' },
-  { label: '판정 미룸', success: 0, decision: 'deferred' },
+const OUTCOMES: { label: [string, string]; success: number; decision: Decision }[] = [
+  { label: ['통과 · 다음 단계로 올림', 'Pass · level up'], success: 100, decision: 'up' },
+  { label: ['통과 · 같은 단계 유지', 'Pass · same level'], success: 85, decision: 'hold' },
+  { label: ['실패 · 같은 단계 유지', 'Fail · same level'], success: 60, decision: 'hold' },
+  { label: ['실패 · 한 단계 내림', 'Fail · level down'], success: 30, decision: 'down' },
+  { label: ['판정 미룸', 'Deferred'], success: 0, decision: 'deferred' },
 ];
 
-function makeTempGame(game: GameName, title: string) {
+function makeTempGame(game: GameName, titles: [string, string]) {
   return function TempGame({ level, roundIndex, onRoundEnd, onExit }: GameProps) {
+    useLang();
+    const title = L(...titles);
     const startedAt = new Date().toISOString();
     const finish = (success: number, decision: Decision) =>
       onRoundEnd({
@@ -37,42 +40,54 @@ function makeTempGame(game: GameName, title: string) {
         started_at: startedAt,
         success_rate_pct: success,
         decision,
-        decision_reason: '임시 게임: 버튼으로 고른 결과',
+        decision_reason: L('임시 게임: 버튼으로 고른 결과', 'Temp game: result chosen by button'),
         params: { temp: true },
       });
 
     return (
-      <Screen header={<ScreenHeader title={`${title} (임시)`} />}>
+      <Screen header={<ScreenHeader title={`${title} ${L('(임시)', '(temp)')}`} />}>
         <View style={styles.info}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.sub}>
-            단계 {level} / {TEMP_MAX_LEVEL} · {roundIndex}번째 라운드
+            {L(`단계 ${level} / ${TEMP_MAX_LEVEL} · ${roundIndex}번째 라운드`, `Level ${level} / ${TEMP_MAX_LEVEL} · Round ${roundIndex}`)}
           </Text>
-          <Text style={styles.note}>아직 연결되지 않은 게임이에요. 결과를 골라 주세요.{'\n'}서버로 보내지 않아요.</Text>
+          <Text style={styles.note}>
+            {L(
+              '아직 연결되지 않은 게임이에요. 결과를 골라 주세요.\n서버로 보내지 않아요.',
+              'This game is not connected yet. Pick a result.\nNothing is sent to the server.',
+            )}
+          </Text>
         </View>
         <View style={styles.buttons}>
           {OUTCOMES.map((o) => (
-            <PrimaryButton key={o.label} label={`${o.label} (${o.success}%)`} chevron={false} onPress={() => finish(o.success, o.decision)} />
+            <PrimaryButton key={o.label[0]} label={`${L(...o.label)} (${o.success}%)`} chevron={false} onPress={() => finish(o.success, o.decision)} />
           ))}
         </View>
         <Text style={styles.exit} onPress={onExit}>
-          나가기 (기록 안 함)
+          {L('나가기 (기록 안 함)', 'Exit (not recorded)')}
         </Text>
       </Screen>
     );
   };
 }
 
-const TEMP_CANDIDATES: { game: GameName; area: GameArea; title: string; description: string }[] = [
-  { game: 'balloon', area: 'breath', title: '풍선 불기', description: '목표 음량을 유지해 풍선을 키워요' },
-  { game: 'candle', area: 'breath', title: '촛불 지키기', description: '고른 목소리로 촛불을 지켜요' },
-  { game: 'spaceship', area: 'intonation', title: '우주선 게임', description: '목소리 높낮이로 우주선을 움직여요' },
-  { game: 'roller_coaster', area: 'intonation', title: '롤러코스터 게임', description: '억양 곡선을 따라 달려요' },
+const TEMP_CANDIDATES: { game: GameName; area: GameArea; title: [string, string]; description: [string, string] }[] = [
+  { game: 'balloon', area: 'breath', title: ['풍선 불기', 'Blow Up the Balloon'], description: ['목표 음량을 유지해 풍선을 키워요', 'Hold the target loudness to grow the balloon'] },
+  { game: 'candle', area: 'breath', title: ['촛불 지키기', 'Keep the Candle Lit'], description: ['고른 목소리로 촛불을 지켜요', 'Keep the candle lit with a steady voice'] },
+  { game: 'spaceship', area: 'intonation', title: ['우주선 게임', 'Spaceship'], description: ['목소리 높낮이로 우주선을 움직여요', 'Move the ship with your voice pitch'] },
+  { game: 'roller_coaster', area: 'intonation', title: ['롤러코스터 게임', 'Roller Coaster'], description: ['억양 곡선을 따라 달려요', 'Ride along the intonation curve'] },
 ];
 
 /** 등록부에 아직 없는 게임만 임시 게임으로 둔다 */
 export const TEMP_GAMES: TempGameEntry[] = TEMP_CANDIDATES.filter((c) => !findGame(c.game)).map((c) => ({
-  ...c,
+  game: c.game,
+  area: c.area,
+  get title() {
+    return L(...c.title);
+  },
+  get description() {
+    return L(...c.description);
+  },
   maxLevel: TEMP_MAX_LEVEL,
   temp: true,
   component: makeTempGame(c.game, c.title),

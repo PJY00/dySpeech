@@ -3,17 +3,19 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
+import { L, useLang } from '@/i18n';
 import { MeasurementBlock } from '@/measurement';
 import { useTraining } from '@/training/TrainingProvider';
 
 export default function MeasureScreen() {
+  useLang();
   const { next } = useLocalSearchParams<{ next?: string }>();
   // 반복 측정은 측정 뒤 바로 결과 보내기, 훈련은 게임으로 간다
-  const doneLabel = next === '/session/finishing' ? '결과 보내기' : '게임으로';
+  const doneLabel = next === '/session/finishing' ? L('결과 보내기', 'Send results') : L('게임으로', 'To games');
   const { session, onMeasured, cancelMeasure } = useTraining();
 
   if (!session) {
-    return <PlaceholderScreen title="측정" description="열린 회차가 없어요. 홈에서 다시 시작해 주세요." />;
+    return <PlaceholderScreen title={L('측정', 'Measurement')} description={L('열린 회차가 없어요. 홈에서 다시 시작해 주세요.', 'No open session. Please start again from Home.')} />;
   }
 
   return (

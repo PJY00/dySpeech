@@ -4,6 +4,7 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
+import { L } from '../i18n/lang';
 import { apiConfig, getHistory } from '../session';
 import type { History, MetricName } from '../session';
 
@@ -17,7 +18,7 @@ export function useHistory() {
   useFocusEffect(
     useCallback(() => {
       if (!apiConfig.url || !apiConfig.hasKey) {
-        setError('서버 주소가 설정되지 않았어요');
+        setError(L('서버 주소가 설정되지 않았어요', 'Server address is not set'));
         return;
       }
       let alive = true;
