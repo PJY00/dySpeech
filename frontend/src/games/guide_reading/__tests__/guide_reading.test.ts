@@ -9,14 +9,13 @@ import { bufferLevelDbfs, voiceBand, VoiceBandFilter } from '../../../measuremen
 import { MemoryStore } from '../../../session/store';
 import { noise, place, RATE, samplesOf, speech } from '../../../session/testing/synth';
 import type { SpeechSpec } from '../../../session/testing/synth';
-import type { History } from '../../../session/types';
 import { isUuidV4, uuidv4 } from '../../../session/uuid';
 import { decodePcm16, parseWav } from '../../../session/wav';
 import { analyzeSentence } from '../analysis';
 import { END_PROGRESS_RATIO, fillsProgress, LATE_END_SILENCE_S, SentenceEnd } from '../endRule';
 import { LiveReader } from '../live';
 import { detectNuclei, intervalCv } from '../nuclei';
-import { DEFAULT_DETECTION_RATIO, loadReadingState, recordDetection, shouldRebaseline, STATE_DOC } from '../reference';
+import { DEFAULT_DETECTION_RATIO, loadReadingState, recordDetection, STATE_DOC } from '../reference';
 import { buildGameRun, DEFAULT_REFERENCE_RATE, judgeSentence, LEVEL_SPECS, MIN_JUDGED_SENTENCES, REASON_TEXT, roundDecision, targetFor } from '../scoring';
 import type { SentenceResult } from '../scoring';
 import { hangulSyllables, roundSentences, TRAINING_SENTENCES } from '../sentences';
@@ -180,7 +179,7 @@ test('판정: 목표 구간(기준 ± 단계별 폭)과 변동계수 기준, 라
 test('라운드 기록: api.md 7.2 형식, params(문장 ID·목표 구간·안내 속도), result(문장별 값)', () => {
   const t = targetFor(4.2, 2);
   const results: SentenceResult[] = roundSentences(1).map((s, i) => judgeSentence(s.id, s.syllables, { rate: 4 + i * 0.1, speechS: 2.5, cv: 0.2, detected: s.syllables - 2 }, t));
-  const run = buildGameRun({ gameRunId: uuidv4(), level: 2, roundIndex: 1, startedAt: '2026-11-08T09:00:00.000Z', referenceRate: 4.2, referenceSource: 'baseline', target: t }, results);
+  const run = buildGameRun({ gameRunId: uuidv4(), level: 2, roundIndex: 1, startedAt: '2026-11-08T09:00:00.000Z', referenceRate: 4.2, referenceSource: 'recent_median', target: t }, results);
   assert.ok(isUuidV4(run.game_run_id));
   assert.equal(run.game, 'guide_reading');
   assert.match(run.game, /^[a-z][a-z0-9_]*$/);
@@ -195,51 +194,40 @@ test('라운드 기록: api.md 7.2 형식, params(문장 ID·목표 구간·안�
   assert.ok(JSON.stringify(run).length < 10_000);
 });
 
-const history = (status: History['metrics'][number]['status'], latest: number | null): History => ({
-  user_id: 'u',
-  metrics: [
-    {
-      metric: 'articulation_rate',
-      unit: 'syllables/s',
-      desired_direction: 'none',
-      baseline: { session_id: 's0', value: 4 },
-      series: [],
-      latest: latest === null ? null : { value: latest, change: latest - 4 },
-      mdc: null,
-      status,
-    },
-  ],
-  recent_device_measurements: [],
+test('기준 말속도: 앱이 넘겨준 최근 3회차 중앙값을 쓰고, 없으면 저장된 값, 그것도 없으면 기본값. 범위 1.5~9음절/초', async () => {
+  const store = new MemoryStore();
+  let s = await loadReadingState(store, 'u1', 4.6);
+  assert.deepEqual([s.referenceRate, s.source], [4.6, 'recent_median'], '첫 회차: 넘겨받은 값');
+  s = await loadReadingState(store, 'u1', 5.2);
+  assert.deepEqual([s.referenceRate, s.source], [5.2, 'recent_median'], '다음 회차: 저장된 첫 회차 값(4.6)이 아니라 넘겨받은 값');
+  s = await loadReadingState(store, 'u1', null);
+  assert.deepEqual([s.referenceRate, s.source], [5.2, 'stored'], '넘겨받은 값이 없으면 저장된 값 유지');
+  s = await loadReadingState(store, 'u1', 12);
+  assert.deepEqual([s.referenceRate, s.source], [9, 'recent_median'], '위 한계');
+  s = await loadReadingState(store, 'u1', 0.4);
+  assert.deepEqual([s.referenceRate, s.source], [1.5, 'recent_median'], '아래 한계');
+  const fresh = await loadReadingState(store, 'u2', null);
+  assert.deepEqual([fresh.referenceRate, fresh.source], [DEFAULT_REFERENCE_RATE, 'default']);
+  assert.ok(store.docs.has(STATE_DOC));
 });
 
-test('기준 말속도: 처음은 측정 블록 값(없으면 기본값). 진전도 increase·decrease는 다시 잡을지만 정하고, 값은 그날 기기 조음속도', async () => {
+test('기준 말속도: 이전 버전이 저장한 상태(첫 회차 값, baseline·rebaseline)를 읽어도 새 규칙으로 덮어쓰고 검출 비율은 이어 쓴다', async () => {
   const store = new MemoryStore();
-  let s = await loadReadingState(store, 'u1', 4.6, null);
-  assert.deepEqual([s.referenceRate, s.source], [4.6, 'baseline']);
-  s = await loadReadingState(store, 'u1', 3.0, history('pending_mdc', 5.5));
-  assert.deepEqual([s.referenceRate, s.source], [4.6, 'stored'], 'pending_mdc: 유지(그날 값으로 바꾸지 않음)');
-  s = await loadReadingState(store, 'u1', 3.0, history('no_change', 5.5));
-  assert.deepEqual([s.referenceRate, s.source], [4.6, 'stored'], 'no_change: 유지');
-  s = await loadReadingState(store, 'u1', 5.0, history('increase', 9.9));
-  assert.deepEqual([s.referenceRate, s.source], [5.0, 'rebaseline'], 'increase: 서버 latest(9.9)가 아니라 그날 기기 값(5.0)');
-  s = await loadReadingState(store, 'u1', 4.2, history('decrease', 1.1));
-  assert.deepEqual([s.referenceRate, s.source], [4.2, 'rebaseline']);
-  s = await loadReadingState(store, 'u1', null, history('increase', 9.9));
-  assert.deepEqual([s.referenceRate, s.source], [4.2, 'stored'], '그날 기기 값이 없으면 저장된 값 유지');
-  const fresh = await loadReadingState(store, 'u2', null, history('increase', 6));
-  assert.deepEqual([fresh.referenceRate, fresh.source], [DEFAULT_REFERENCE_RATE, 'default']);
-  assert.equal(shouldRebaseline(history('low_reliability', 9)), false);
-  assert.equal(shouldRebaseline(null), false);
-  assert.ok(store.docs.has(STATE_DOC));
+  await store.writeJson(STATE_DOC, { u1: { referenceRate: 7.3, source: 'baseline', detectionRatio: 0.55, updatedAt: '2026-11-15T00:00:00.000Z' } });
+  let s = await loadReadingState(store, 'u1', 6.1);
+  assert.deepEqual([s.referenceRate, s.source, s.detectionRatio], [6.1, 'recent_median', 0.55]);
+  await store.writeJson(STATE_DOC, { u1: { referenceRate: 7.3, source: 'rebaseline', detectionRatio: 0.55, updatedAt: '2026-11-15T00:00:00.000Z' } });
+  s = await loadReadingState(store, 'u1', null);
+  assert.deepEqual([s.referenceRate, s.source, s.detectionRatio], [7.3, 'stored', 0.55], '넘겨받은 값이 없을 때만 저장된 값');
 });
 
 test('검출 비율: 문장마다 0.7 × 이전 + 0.3 × (검출 ÷ 정답), 0.3~1.2 안', async () => {
   const store = new MemoryStore();
-  await loadReadingState(store, 'u', 4, null);
+  await loadReadingState(store, 'u', 4);
   near(await recordDetection(store, 'u', 10, 10), 0.7 * 0.7 + 0.3 * 1, 1e-9, '첫 갱신');
   for (let i = 0; i < 30; i++) await recordDetection(store, 'u', 0, 10);
   near(await recordDetection(store, 'u', 0, 10), 0.3, 1e-9, '아래 한계');
-  const s = await loadReadingState(store, 'u', 4, null);
+  const s = await loadReadingState(store, 'u', 4);
   near(s.detectionRatio, 0.3, 1e-9, '저장됨');
 });
 
@@ -333,7 +321,7 @@ test('다시 읽기: 결과에는 시도마다 남고, params.sentence_ids는 �
     judgeSentence('g01', 11, { rate: 4, speechS: 2, cv: 0.2, detected: 9 }, t, 'after_guide'),
     ...ids.map((id) => judgeSentence(id, 11, { rate: 4, speechS: 2.7, cv: 0.2, detected: 9 }, t)),
   ];
-  const run = buildGameRun({ gameRunId: uuidv4(), level: 1, roundIndex: 1, startedAt: '2026-11-08T09:00:00.000Z', referenceRate: 4, referenceSource: 'baseline', target: t, sentenceIds: ids }, results);
+  const run = buildGameRun({ gameRunId: uuidv4(), level: 1, roundIndex: 1, startedAt: '2026-11-08T09:00:00.000Z', referenceRate: 4, referenceSource: 'recent_median', target: t, sentenceIds: ids }, results);
   assert.deepEqual((run.params as Record<string, unknown>).sentence_ids, ids);
   assert.equal((run.result as { sentences: unknown[] }).sentences.length, 6);
   assert.equal(run.success_rate_pct, 100);

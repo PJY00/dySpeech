@@ -208,15 +208,27 @@ export function speech(spec: SpeechSpec, rate = RATE): { samples: Float32Array; 
 }
 
 /** 측정 블록 한 회차 녹음(정답값과 함께). 모두 48 kHz */
-export function measurementBlock(seed = 3) {
+/** 측정 블록 합성 신호를 회차마다 다르게 만들 때 바꾸는 값. 주지 않으면 기본값 */
+export interface BlockVariation {
+  /** "아" 발성 길이(초) 3개. 기본 6, 7.5, 7 */
+  trialS?: number[];
+  /** "아" 음량(dBFS). 기본 −20 */
+  sustainedDbfs?: number;
+  /** 평가 문장 낭독에서 바꿀 값(빠르기는 vowelS, 음높이는 f0StartHz·f0EndHz) */
+  sentence?: Partial<SpeechSpec>;
+}
+
+export function measurementBlock(seed = 3, vary: BlockVariation = {}) {
   const nf = -60;
   const bg = (seconds: number, s: number) => noise(samplesOf(seconds), nf, seed * 100 + s);
   const glideLen = samplesOf(5);
   const glide = place(bg(6, 1), harmonic(glideHz(110, 330, glideLen), glideLen, -22), samplesOf(0.5));
   const noiseFloor = bg(2.5, 2);
-  const trialS = [6, 7.5, 7];
-  const trials = trialS.map((d, k) => place(bg(d + 1.5, 3 + k), harmonic(150, samplesOf(d), -20), samplesOf(0.5)));
-  const sentence = speech({ ...S1_SPEECH, noiseDbfs: nf, seed: seed * 100 + 9 });
+  const trialS = vary.trialS ?? [6, 7.5, 7];
+  const sustainedDbfs = vary.sustainedDbfs ?? -20;
+  const trials = trialS.map((d, k) => place(bg(d + 1.5, 3 + k), harmonic(150, samplesOf(d), sustainedDbfs), samplesOf(0.5)));
+  const sentenceSpec = { ...S1_SPEECH, ...vary.sentence };
+  const sentence = speech({ ...sentenceSpec, noiseDbfs: nf, seed: seed * 100 + 9 });
   return {
     glide,
     noiseFloor,
@@ -225,9 +237,9 @@ export function measurementBlock(seed = 3) {
     truth: {
       noiseFloorDbfs: nf,
       maxPhonationTimeS: Math.max(...trialS),
-      sustainedLevelDbfs: -20,
+      sustainedLevelDbfs: sustainedDbfs,
       glide: { startHz: 110, endHz: 330 },
-      sentenceF0Hz: [S1_SPEECH.f0StartHz, S1_SPEECH.f0EndHz],
+      sentenceF0Hz: [sentenceSpec.f0StartHz, sentenceSpec.f0EndHz],
       syllables: sentence.syllables,
     },
   };

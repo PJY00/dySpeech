@@ -110,6 +110,11 @@ export interface SessionModule {
   /** 서버 계산 중(processing)인 세션의 상태만 서버에서 다시 읽는다. 보내기는 새로 시작하지 않는다(메인 화면 갱신용) */
   refreshStatuses(): Promise<void>;
   getLatestBaselines(): Promise<Baselines | null>;
+  /**
+   * 현재 사용자의 훈련 회차 기준값(측정 블록을 끝낸 회차만). 측정한 시각이 늦은 회차부터 나온다
+   * 기기에 남아 있는 세션 문서에서 읽으므로 서버로 보내지 못한 회차도 들어간다. 반복 측정 회차는 넣지 않는다
+   */
+  listTrainingBaselines(): Promise<Baselines[]>;
   /** 진전도. 사용자가 아직 서버에 없으면 null */
   getHistory(): Promise<History | null>;
   currentUser(): Promise<UserInfo>;
@@ -449,6 +454,16 @@ export function createSessionModule(deps: SessionModuleDeps): SessionModule {
 
     async getLatestBaselines() {
       return (await currentUserRecord()).latestBaselines;
+    },
+
+    async listTrainingBaselines() {
+      const user = await currentUserRecord();
+      const out: Baselines[] = [];
+      for (const id of await repo.listSessionIds()) {
+        const rec = await repo.loadSession(id);
+        if (rec && rec.userId === user.userId && rec.purpose === 'training' && rec.baselines) out.push(rec.baselines);
+      }
+      return out.sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
     },
 
     async getHistory() {

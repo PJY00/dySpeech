@@ -53,6 +53,7 @@ export const resumePending = sessionModule.resumePending;
 export const syncNow = sessionModule.syncNow;
 export const refreshStatuses = sessionModule.refreshStatuses;
 export const getLatestBaselines = sessionModule.getLatestBaselines;
+export const listTrainingBaselines = sessionModule.listTrainingBaselines;
 export const getHistory = sessionModule.getHistory;
 export const currentUser = sessionModule.currentUser;
 export const startNewDevUser = sessionModule.startNewDevUser;
