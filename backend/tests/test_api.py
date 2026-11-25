@@ -81,7 +81,7 @@ def test_health_needs_no_key(client_factory):
 def test_openapi_documents_version_key_and_error_format(api_client):
     schema = api_client.get("/openapi.json").json()
 
-    assert schema["info"]["version"] == "0.2.1"
+    assert schema["info"]["version"] == "0.2.2"
     assert schema["components"]["securitySchemes"]["APIKeyHeader"]["name"] == "X-App-Key"
     assert "HTTPValidationError" not in schema["components"]["schemas"]
     v1_operations = [op for path, ops in schema["paths"].items() if path.startswith("/v1") for op in ops.values()]
