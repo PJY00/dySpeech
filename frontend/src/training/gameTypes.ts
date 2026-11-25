@@ -18,6 +18,8 @@ export const GAME_AREAS: readonly { area: GameArea; title: string; description: 
 
 /**
  * 게임이 받는 기준값(측정 블록에서 기기가 계산). 구하지 못한 값은 null
+ * - "아" 음량, 기본주파수 중앙값, 최대발성지속시간, 조음속도는 오늘을 포함한 최근 3회차 값의 중앙값이다(gameBaselines)
+ * - 잡음 바닥은 그날 값이다(그날 방의 소음이라서)
  * - f0SearchRangeHz는 항상 있다(캘리브레이션이 없으면 75~500 Hz)
  */
 export type GameBaselines = Pick<
@@ -25,14 +27,40 @@ export type GameBaselines = Pick<
   'noiseFloorDbfs' | 'sustainedLevelDbfs' | 'f0MedianHz' | 'f0SearchRangeHz' | 'maxPhonationTimeS' | 'articulationRateSps'
 >;
 
-export function gameBaselines(b: Baselines): GameBaselines {
+/** 게임 기준값에 쓰는 회차 수(오늘 포함) */
+export const RECENT_SESSIONS = 3;
+
+/** 중앙값. 값이 짝수 개면 가운데 두 값의 평균, 없으면 null */
+export function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * 게임 기준값을 만든다. 한 번 잰 값의 흔들림이 그날 목표에 그대로 들어가지 않게, 오늘을 포함한 최근 3회차의 중앙값을 쓴다
+ * - 대상: "아" 음량, 기본주파수 중앙값, 최대발성지속시간, 조음속도
+ * - 최근 3회차 = 오늘 + 그 앞의 훈련 회차 2개. 1회차는 오늘 값, 2회차는 두 값의 평균
+ * - 그 3회차 안에서 값이 있는 것만으로 구한다. 하나도 없으면 null(게임이 기본값을 씀)
+ * - 잡음 바닥과 기본주파수 탐색 범위는 오늘 값 그대로
+ * earlier: 지난 훈련 회차의 기준값(listTrainingBaselines). 순서는 상관없고, 오늘 회차가 섞여 있으면 뺀다
+ */
+export function gameBaselines(today: Baselines, earlier: readonly Baselines[] = []): GameBaselines {
+  const before = earlier
+    .filter((b) => b.sessionId !== today.sessionId)
+    .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt))
+    .slice(0, RECENT_SESSIONS - 1);
+  const recent = [today, ...before];
+  const recentMedian = (pick: (b: Baselines) => number | null | undefined): number | null =>
+    median(recent.map(pick).filter((v): v is number => typeof v === 'number' && Number.isFinite(v)));
   return {
-    noiseFloorDbfs: b.noiseFloorDbfs,
-    sustainedLevelDbfs: b.sustainedLevelDbfs,
-    f0MedianHz: b.f0MedianHz,
-    f0SearchRangeHz: b.f0SearchRangeHz,
-    maxPhonationTimeS: b.maxPhonationTimeS,
-    articulationRateSps: b.articulationRateSps,
+    noiseFloorDbfs: today.noiseFloorDbfs,
+    sustainedLevelDbfs: recentMedian((b) => b.sustainedLevelDbfs),
+    f0MedianHz: recentMedian((b) => b.f0MedianHz),
+    f0SearchRangeHz: today.f0SearchRangeHz,
+    maxPhonationTimeS: recentMedian((b) => b.maxPhonationTimeS),
+    articulationRateSps: recentMedian((b) => b.articulationRateSps),
   };
 }
 
