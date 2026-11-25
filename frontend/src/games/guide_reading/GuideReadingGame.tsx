@@ -9,8 +9,7 @@ import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet,
 
 import type { GameProps } from '../../training/gameTypes';
 import { MeasurementRecorder, prepareMicrophone } from '../../measurement/recorder';
-import { discardRecordingFile, getHistory, readRecordingFile, stateStore, uuidv4 } from '../../session';
-import type { History } from '../../session';
+import { discardRecordingFile, readRecordingFile, stateStore, uuidv4 } from '../../session';
 import { decodePcm16, parseWav } from '../../session/wav';
 import { analyzeSentence } from './analysis';
 import { fillsProgress, SentenceEnd } from './endRule';
@@ -24,9 +23,6 @@ import { roundSentences } from './sentences';
 import type { TrainingSentence } from './sentences';
 import { COUNTDOWN_S, JudgeGate, judgedSamples, sentenceTiming } from './timing';
 
-/** 진전도를 기다리는 최대 시간(밀리초). 넘으면 저장된 기준으로 시작 */
-const HISTORY_TIMEOUT_MS = 3000;
-
 type Phase = 'loading' | 'denied' | 'ready' | 'reading' | 'analyzing' | 'feedback' | 'error';
 
 const log = (event: string, data?: unknown) => console.log('[guide_reading]', event, data === undefined ? '' : JSON.stringify(data));
@@ -34,14 +30,6 @@ const isHangul = (ch: string) => {
   const c = ch.codePointAt(0) ?? 0;
   return c >= 0xac00 && c <= 0xd7a3;
 };
-
-async function historyOrNull(): Promise<History | null> {
-  try {
-    return await Promise.race([getHistory(), new Promise<null>((r) => setTimeout(() => r(null), HISTORY_TIMEOUT_MS))]);
-  } catch {
-    return null;
-  }
-}
 
 export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoundEnd, onExit }: GameProps) {
   const sentences = useMemo(() => roundSentences(roundIndex), [roundIndex]);
@@ -70,7 +58,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
           setPhase('denied');
           return;
         }
-        const state = await loadReadingState(stateStore, userKey, baselines.articulationRateSps, await historyOrNull());
+        const state = await loadReadingState(stateStore, userKey, baselines.articulationRateSps);
         log('reference', { user_key: userKey, ...state, level });
         setReading(state);
         recorder.current = new MeasurementRecorder();

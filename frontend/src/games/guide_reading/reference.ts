@@ -1,13 +1,12 @@
 // 기준 말속도와 음절 핵 검출 비율(사용자별, 기기에 저장).
-// - 처음: 측정 블록 기준값(기기 조음속도)이 있으면 그 값, 없으면 기본값 4.0음절/초
-// - 회차마다: 진전도의 articulation_rate 판정은 "다시 잡을지"만 정한다. increase·decrease면 그날 측정 블록의 기기 조음속도로
-//   다시 잡고(게임 안 말속도도 기기 방식으로 재므로 같은 방식끼리 맞춤), no_change·pending_mdc(그 밖)면 유지한다.
-//   그날 기기 조음속도가 없으면(null) 저장된 값을 유지한다
-// - 지금은 최소 측정 가능 변화량이 없어 판정이 늘 pending_mdc이므로 기준 말속도가 첫 회차 값에 머문다
+// - 기준 말속도 = 앱이 넘겨준 기준값(baselines.articulationRateSps). 오늘을 포함한 최근 3회차 측정 블록의
+//   기기 조음속도 중앙값이다(training/gameTypes.ts의 gameBaselines). 다른 게임의 기준값과 같은 규칙이다
+//   기기 값을 쓰는 것은 게임 안 말속도도 기기 방식으로 재기 때문이다(같은 방식끼리 맞춤)
+// - 그 값이 없으면(최근 3회차에 조음속도가 하나도 없음) 저장된 값을 유지하고, 저장된 값도 없으면 기본값 4.0음절/초
+// - 서버 진전도 판정은 쓰지 않는다. 라운드를 시작할 때 서버를 기다리지 않는다
 // - 검출 비율: 문장마다 검출 음절 수 ÷ 정답 음절 수를 지수 평균으로 쌓아, 진행 표시를 보정한다
 
 import type { Store } from '../../session/store';
-import type { History } from '../../session/types';
 import { DEFAULT_REFERENCE_RATE } from './scoring';
 
 export const STATE_DOC = 'games/guide_reading.json';
@@ -18,8 +17,8 @@ const RATIO_RANGE = { min: 0.3, max: 1.2 };
 /** 기준 말속도가 벗어나지 않게 하는 범위(음절/초) */
 const RATE_RANGE = { min: 1.5, max: 9 };
 
-/** baseline: 첫 회차 측정 블록 값, default: 기본값, stored: 저장된 값 유지, rebaseline: 진전도 판정으로 그날 측정 블록 값으로 다시 잡음 */
-export type ReferenceSource = 'baseline' | 'default' | 'stored' | 'rebaseline';
+/** recent_median: 최근 3회차 측정 블록 값의 중앙값, stored: 그 값이 없어 저장된 값 유지, default: 기본값 */
+export type ReferenceSource = 'recent_median' | 'stored' | 'default';
 
 export interface ReadingState {
   referenceRate: number;
@@ -36,35 +35,19 @@ async function readDoc(store: Store): Promise<Doc> {
   return ((await store.readJson(STATE_DOC)) as Doc | null) ?? {};
 }
 
-/** 진전도로 기준 말속도를 다시 잡을지: articulation_rate 판정이 increase·decrease면 참 */
-export function shouldRebaseline(history: History | null): boolean {
-  const m = history?.metrics.find((x) => x.metric === 'articulation_rate');
-  return m?.status === 'increase' || m?.status === 'decrease';
-}
-
 /**
- * 라운드를 시작할 때 부른다. 저장된 상태를 읽고(없으면 만들고) 진전도 규칙을 반영해 저장한 뒤 돌려준다
- * todayRate: 그날 측정 블록의 기기 조음속도(음절/초, baselines.articulationRateSps). 없으면 null
+ * 라운드를 시작할 때 부른다. 기준 말속도를 정해 저장하고 돌려준다. 검출 비율은 저장된 값을 이어 쓴다
+ * recentRate: 최근 3회차 측정 블록의 기기 조음속도 중앙값(음절/초, baselines.articulationRateSps). 없으면 null
  */
-export async function loadReadingState(
-  store: Store,
-  userKey: string,
-  todayRate: number | null,
-  history: History | null,
-  now = new Date(),
-): Promise<ReadingState> {
+export async function loadReadingState(store: Store, userKey: string, recentRate: number | null, now = new Date()): Promise<ReadingState> {
   const doc = await readDoc(store);
   const stored = doc[userKey];
-  let state: ReadingState = stored
-    ? { ...stored, source: 'stored' }
-    : {
-        referenceRate: todayRate ?? DEFAULT_REFERENCE_RATE,
-        source: todayRate !== null ? 'baseline' : 'default',
-        detectionRatio: DEFAULT_DETECTION_RATIO,
-        updatedAt: now.toISOString(),
-      };
-  if (stored && todayRate !== null && shouldRebaseline(history)) state = { ...state, referenceRate: todayRate, source: 'rebaseline' };
-  state = { ...state, referenceRate: clamp(state.referenceRate, RATE_RANGE), updatedAt: now.toISOString() };
+  const state: ReadingState = {
+    referenceRate: clamp(recentRate ?? stored?.referenceRate ?? DEFAULT_REFERENCE_RATE, RATE_RANGE),
+    source: recentRate !== null ? 'recent_median' : stored ? 'stored' : 'default',
+    detectionRatio: stored?.detectionRatio ?? DEFAULT_DETECTION_RATIO,
+    updatedAt: now.toISOString(),
+  };
   doc[userKey] = state;
   await store.writeJson(STATE_DOC, doc);
   return state;
