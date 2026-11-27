@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { L, useLang } from '../../i18n';
 import type { GameProps } from '../../training/gameTypes';
 import { MeasurementRecorder, prepareMicrophone } from '../../measurement/recorder';
 import { discardRecordingFile, readRecordingFile, stateStore, uuidv4 } from '../../session';
@@ -31,7 +32,21 @@ const isHangul = (ch: string) => {
   return c >= 0xac00 && c <= 0xd7a3;
 };
 
+/** 문장 피드백. 영어는 채점 모듈의 문구(REASON_TEXT)를 그대로 쓰고, 한국어는 여기 둔다 */
+const REASON_TEXT_KO: Record<keyof typeof REASON_TEXT, string> = {
+  fast: '조금 빨랐어요. 안내 막대에 맞춰 천천히 읽어 보세요.',
+  slow: '조금 느렸어요. 안내 막대를 따라가 보세요.',
+  uneven: '빠르기가 고르지 않았어요. 한 글자씩 같은 박자로 읽어 보세요.',
+  no_speech: '목소리가 잘 들리지 않았어요.',
+  incomplete: '끝까지 읽지 못한 것 같아요.',
+};
+
+function reasonText(reason: keyof typeof REASON_TEXT): string {
+  return L(REASON_TEXT_KO[reason], REASON_TEXT[reason]);
+}
+
 export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoundEnd, onExit }: GameProps) {
+  useLang();
   const sentences = useMemo(() => roundSentences(roundIndex), [roundIndex]);
   const [phase, setPhase] = useState<Phase>('loading');
   const [index, setIndex] = useState(0);
@@ -226,7 +241,7 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   if (phase === 'loading') {
     return (
       <Frame>
-        <Text style={s.title}>Pace Reading</Text>
+        <Text style={s.title}>{L('속도 맞춰 읽기', 'Pace Reading')}</Text>
         <ActivityIndicator size="large" />
       </Frame>
     );
@@ -234,9 +249,9 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   if (phase === 'denied' || phase === 'error') {
     return (
       <Frame>
-        <Text style={s.title}>Couldn't start</Text>
-        <Text style={s.warn}>{phase === 'denied' ? 'Microphone access needed.' : error}</Text>
-        <Button label="Exit" onPress={() => void exit()} />
+        <Text style={s.title}>{L('시작하지 못했어요', "Couldn't start")}</Text>
+        <Text style={s.warn}>{phase === 'denied' ? L('마이크 권한이 필요해요.', 'Microphone access needed.') : error}</Text>
+        <Button label={L('나가기', 'Exit')} onPress={() => void exit()} />
       </Frame>
     );
   }
@@ -245,12 +260,15 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
   return (
     <Frame>
       <Text style={s.progressLabel}>
-        Sentence {index + 1} / {sentences.length} · Level {level}
+        {L(`문장 ${index + 1} / ${sentences.length} · 단계 ${level}`, `Sentence ${index + 1} / ${sentences.length} · Level ${level}`)}
       </Text>
-      <Text style={s.title}>Read along with the guide</Text>
+      <Text style={s.title}>{L('안내를 따라 읽어요', 'Read along with the guide')}</Text>
       {target && (
         <Text style={s.note}>
-          Read at the pace of the blue letters ({target.guideRate.toFixed(1)} syllables/s), keeping an even beat.
+          {L(
+            `파란 글자가 지나가는 빠르기(${target.guideRate.toFixed(1)}음절/초)에 맞춰, 같은 박자로 읽어 주세요.`,
+            `Read at the pace of the blue letters (${target.guideRate.toFixed(1)} syllables/s), keeping an even beat.`,
+          )}
         </Text>
       )}
 
@@ -259,34 +277,48 @@ export function GuideReadingGame({ baselines, level, roundIndex, userKey, onRoun
 
       {phase === 'ready' && (
         <>
-          <Button label="Start" onPress={() => void start()} />
-          <Button label="Exit" kind="secondary" onPress={() => void exit()} />
+          <Button label={L('시작', 'Start')} onPress={() => void start()} />
+          <Button label={L('나가기', 'Exit')} kind="secondary" onPress={() => void exit()} />
         </>
       )}
       {phase === 'reading' && countdown !== null && (
         <>
           <Text style={s.countdown}>{countdown}</Text>
-          <Text style={s.body}>Read it silently first. Start reading aloud when the blue letters move.</Text>
+          <Text style={s.body}>
+            {L(
+              '먼저 속으로 읽어 보세요. 파란 글자가 움직이면 소리 내어 읽어요.',
+              'Read it silently first. Start reading aloud when the blue letters move.',
+            )}
+          </Text>
         </>
       )}
-      {phase === 'reading' && countdown === null && <Text style={s.body}>{progress < 0.5 ? 'Read along with the blue letters' : 'Reading…'}</Text>}
+      {phase === 'reading' && countdown === null && (
+        <Text style={s.body}>{progress < 0.5 ? L('파란 글자를 따라 읽어 주세요', 'Read along with the blue letters') : L('읽는 중이에요', 'Reading…')}</Text>
+      )}
       {phase === 'analyzing' && <ActivityIndicator size="large" />}
       {phase === 'feedback' && last && target && !last.judged && (
         <>
-          <Text style={s.warn}>{REASON_TEXT.incomplete}</Text>
-          <Button label="Read again" onPress={retry} />
-          <Button label={index + 1 < sentences.length ? 'Next sentence' : 'Finish round'} kind="secondary" onPress={next} />
+          <Text style={s.warn}>{reasonText('incomplete')}</Text>
+          <Button label={L('다시 읽기', 'Read again')} onPress={retry} />
+          <Button label={index + 1 < sentences.length ? L('다음 문장', 'Next sentence') : L('라운드 끝', 'Finish round')} kind="secondary" onPress={next} />
         </>
       )}
       {phase === 'feedback' && last && target && last.judged && (
         <>
           <Text style={last.passed ? s.ok : s.warn}>
-            {last.passed ? (last.rhythm_checked ? 'Well done!' : 'Well done! (rhythm not checked)') : REASON_TEXT[last.reason ?? 'no_speech']}
+            {last.passed
+              ? last.rhythm_checked
+                ? L('잘했어요!', 'Well done!')
+                : L('잘했어요! (박자는 확인하지 못했어요)', 'Well done! (rhythm not checked)')
+              : reasonText(last.reason ?? 'no_speech')}
           </Text>
           <Text style={s.body}>
-            Pace {last.articulation_rate === null ? '-' : last.articulation_rate.toFixed(1)} syllables/s (target {target.min.toFixed(1)}–{target.max.toFixed(1)})
+            {L(
+              `빠르기 ${last.articulation_rate === null ? '-' : last.articulation_rate.toFixed(1)}음절/초 (목표 ${target.min.toFixed(1)}~${target.max.toFixed(1)})`,
+              `Pace ${last.articulation_rate === null ? '-' : last.articulation_rate.toFixed(1)} syllables/s (target ${target.min.toFixed(1)}–${target.max.toFixed(1)})`,
+            )}
           </Text>
-          <Button label={index + 1 < sentences.length ? 'Next sentence' : 'Finish round'} onPress={next} />
+          <Button label={index + 1 < sentences.length ? L('다음 문장', 'Next sentence') : L('라운드 끝', 'Finish round')} onPress={next} />
         </>
       )}
     </Frame>

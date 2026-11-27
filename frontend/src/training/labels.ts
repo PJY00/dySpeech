@@ -1,5 +1,7 @@
 // 화면에 보여 주는 이름과 단위(지표 정의는 docs/metrics-spec.md 3장).
+// 한국어 표(*_LABELS)와 영어 표를 두고, 화면은 metricLabel() 등으로 지금 언어의 이름을 꺼낸다.
 
+import { L } from '../i18n/lang';
 import type { LocalState, MetricName, ServerMeasurement, SessionSummary, Unit } from '../session/types';
 
 export const METRIC_LABELS: Record<MetricName, string> = {
@@ -16,6 +18,24 @@ export const METRIC_LABELS: Record<MetricName, string> = {
   noise_floor: '잡음 바닥',
 };
 
+const METRIC_LABELS_EN: Record<MetricName, string> = {
+  max_phonation_time: 'Maximum phonation time',
+  loudness_decay_slope: 'Loudness decay slope',
+  mean_level_change: 'Mean level change',
+  articulation_rate: 'Articulation rate',
+  speech_rate: 'Speech rate',
+  pause_ratio: 'Pause ratio',
+  f0_sd_semitones: 'F0 variability (semitones)',
+  pitch_range_semitones: 'Pitch range',
+  sustained_level: '"Ah" loudness',
+  f0_median: 'Median F0',
+  noise_floor: 'Noise floor',
+};
+
+export function metricLabel(metric: MetricName): string {
+  return L(METRIC_LABELS[metric], METRIC_LABELS_EN[metric]);
+}
+
 const UNIT_LABELS: Record<Unit, string> = {
   s: '초',
   'dB/s': 'dB/초',
@@ -27,9 +47,24 @@ const UNIT_LABELS: Record<Unit, string> = {
   Hz: 'Hz',
 };
 
+const UNIT_LABELS_EN: Record<Unit, string> = {
+  s: 's',
+  'dB/s': 'dB/s',
+  dB: 'dB',
+  'syllables/s': 'syll/s',
+  '%': '%',
+  semitones: 'st',
+  dBFS: 'dBFS',
+  Hz: 'Hz',
+};
+
+export function unitLabel(unit: Unit): string {
+  return L(UNIT_LABELS[unit], UNIT_LABELS_EN[unit]);
+}
+
 export function formatMeasurement(m: Pick<ServerMeasurement, 'value' | 'unit' | 'low_reliability'>): string {
   const digits = m.unit === 'Hz' || m.unit === '%' ? 1 : 2;
-  return `${m.value.toFixed(digits)} ${UNIT_LABELS[m.unit]}${m.low_reliability ? ' (신뢰 낮음)' : ''}`;
+  return `${m.value.toFixed(digits)} ${unitLabel(m.unit)}${m.low_reliability ? L(' (신뢰 낮음)', ' (low reliability)') : ''}`;
 }
 
 export const STATE_LABELS: Record<LocalState, string> = {
@@ -42,6 +77,20 @@ export const STATE_LABELS: Record<LocalState, string> = {
   blocked: '보내기 오류',
 };
 
+const STATE_LABELS_EN: Record<LocalState, string> = {
+  recording: 'Recording',
+  queued: 'Waiting to send',
+  sending: 'Sending',
+  processing: 'Server is analyzing',
+  done: 'Analysis done',
+  failed: 'Analysis failed',
+  blocked: 'Sending error',
+};
+
+export function stateLabel(state: LocalState): string {
+  return L(STATE_LABELS[state], STATE_LABELS_EN[state]);
+}
+
 /** 메인 화면 최근 회차 카드의 상태 */
 export type CardStatus = 'sending' | 'processing' | 'result' | 'unsent';
 
@@ -51,6 +100,24 @@ export const CARD_LABELS: Record<CardStatus, string> = {
   result: '결과 나옴',
   unsent: '보내지 못함',
 };
+
+const CARD_LABELS_EN: Record<CardStatus, string> = {
+  sending: 'Sending',
+  processing: 'Analyzing',
+  result: 'Results ready',
+  unsent: 'Not sent',
+};
+
+/** 회차 종류 이름 */
+export function purposeLabel(purpose: SessionSummary['purpose']): string {
+  if (purpose === 'retest') return L('반복 측정', 'Retest');
+  if (purpose === 'agc_test') return L('폰 점검', 'Phone check');
+  return L('훈련', 'Training');
+}
+
+export function cardLabel(status: CardStatus): string {
+  return L(CARD_LABELS[status], CARD_LABELS_EN[status]);
+}
 
 /**
  * 카드 상태. complete 전(recording)은 카드로 보이지 않는다(앱 시작 때 따로 묻는다)

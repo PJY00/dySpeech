@@ -5,18 +5,24 @@ import { Card } from '@/components/Card';
 import { RecordRow } from '@/components/RecordRow';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { L, useLang } from '@/i18n';
 import { colors } from '@/theme';
 import { sessionRows, useHistory } from '@/training/useHistory';
 
 export default function HistoryScreen() {
+  useLang();
   const { history, loading, error } = useHistory();
   const rows = sessionRows(history).map((row, i) => ({ row, index: i + 1 })).reverse();
 
   return (
-    <Screen header={<ScreenHeader title="전체 기록" />}>
+    <Screen header={<ScreenHeader title={L('전체 기록', 'All records')} />}>
       <Card>
         <Text style={styles.count}>
-          {rows.length > 0 ? `총 ${rows.length}회차` : loading ? '불러오는 중…' : (error ?? '아직 기록이 없어요.')}
+          {rows.length > 0
+            ? L(`총 ${rows.length}회차`, `${rows.length} sessions`)
+            : loading
+              ? L('불러오는 중…', 'Loading…')
+              : (error ?? L('아직 기록이 없어요.', 'No records yet.'))}
         </Text>
         {rows.map(({ row, index }) => (
           <RecordRow key={row.sessionId} row={row} index={index} />

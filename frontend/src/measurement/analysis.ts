@@ -1,6 +1,7 @@
 // 측정 블록 녹음에서 기기 지표를 계산한다. 정의는 docs/metrics-spec.md 3·4장, 서버(backend/app/metrics)와 같은 규칙.
 // 기기 값은 게임과 난이도에 쓰고, 서버는 저장만 한다(공식 값은 서버 값).
 
+import { L } from '../i18n/lang';
 import type { Baselines, DeviceMeasurement, HzRange } from '../session/types';
 import { cleanF0, percentile, searchRange } from './pitch';
 
@@ -169,7 +170,7 @@ export function computeBlock(input: BlockInput): BlockResult {
   const noNoise = input.noise === null || input.noise.length === 0;
   const floorFor = (levels: Float64Array) =>
     noNoise ? percentile(levels, FALLBACK_FLOOR_PERCENTILE) : median(input.noise as Float64Array);
-  if (noNoise) notes.push('잡음 바닥 녹음이 없어, 녹음마다 프레임 음량 하위 10백분위를 잡음 바닥으로 썼다');
+  if (noNoise) notes.push(L('잡음 바닥 녹음이 없어, 녹음마다 프레임 음량 하위 10백분위를 잡음 바닥으로 썼다', 'No noise-floor recording; used the 10th percentile of frame levels per recording'));
 
   let noiseFloorDbfs: number | null = null;
   if (!noNoise) {
@@ -186,7 +187,7 @@ export function computeBlock(input: BlockInput): BlockResult {
     measurements.push({ metric: 'max_phonation_time', value: round(best.durationS, 2), unit: 's', low_reliability: noNoise });
     measurements.push({ metric: 'sustained_level', value: round(best.medianLevel, 2), unit: 'dBFS', low_reliability: noNoise });
   } else if (input.trials.length) {
-    notes.push('"아" 녹음에서 발성을 찾지 못했다');
+    notes.push(L('"아" 녹음에서 발성을 찾지 못했다', 'No phonation found in the "Ah" recordings'));
   }
 
   let f0MedianHz: number | null = null;
@@ -197,15 +198,20 @@ export function computeBlock(input: BlockInput): BlockResult {
       articulationRateSps = ar.rate;
       measurements.push({ metric: 'articulation_rate', value: round(ar.rate, 2), unit: 'syllables/s', low_reliability: noNoise });
     } else {
-      notes.push('평가 문장에서 발화를 찾지 못했다');
+      notes.push(L('평가 문장에서 발화를 찾지 못했다', 'No speech found in the evaluation sentence'));
     }
     const sp = sentencePitch(input.sentence.levels, input.sentence.f0, floorFor(input.sentence.levels));
     if (sp) {
       f0MedianHz = sp.f0MedianHz;
       measurements.push({ metric: 'f0_median', value: round(sp.f0MedianHz, 1), unit: 'Hz', low_reliability: sp.lowReliability || noNoise });
-      if (sp.lowReliability) notes.push(`평가 문장의 유성 프레임 비율 ${Math.round(sp.voicedRatio * 100)}%로 50% 미만`);
+      if (sp.lowReliability) notes.push(
+          L(
+            `평가 문장의 유성 프레임 비율 ${Math.round(sp.voicedRatio * 100)}%로 50% 미만`,
+            `Voiced frame ratio in the sentence is ${Math.round(sp.voicedRatio * 100)}%, below 50%`,
+          ),
+        );
     } else {
-      notes.push('평가 문장에서 유성 구간을 찾지 못했다');
+      notes.push(L('평가 문장에서 유성 구간을 찾지 못했다', 'No voiced segment found in the evaluation sentence'));
     }
   }
 

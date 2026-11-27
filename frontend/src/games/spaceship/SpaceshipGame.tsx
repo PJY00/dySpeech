@@ -3,6 +3,7 @@ import { Animated, AppState, Easing, Platform, Pressable, StyleSheet, Text, View
 import {
   CLARITY_THRESHOLD, DEFAULT_MAX_HZ, DEFAULT_MIN_HZ, REALTIME_HOP_SEC, WINDOW_SEC,
 } from './audio/PitchTracker';
+import { L, useLang } from '../../i18n';
 import { useSpaceshipMic } from './audio/useSpaceshipMic';
 import { VOICING_MARGIN_DB, type SpaceshipBaseline } from './baseline';
 import { buildRound, nextPhrase, phraseAt, PATTERNS, REACTION_ALLOWANCE_SEC, shapeAt, type Round } from './contours';
@@ -75,6 +76,7 @@ const Stars = memo(function Stars({ round, h, got }: { round: Round; h: number; 
 });
 
 export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinish, onExit, seed }: Props) {
+  useLang();
   const round = useMemo(() => buildRound(level, undefined, seed), [level, seed]);
   const gameRef = useRef(createGame(round, baseline));
   const t0Ref = useRef<number | null>(null);
@@ -235,7 +237,7 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
         {h > 0 && (
           <>
             <View style={[s.baseline, { top: h / 2 }]} />
-            <Text style={[s.baselineLabel, { top: h / 2 + 4 }]}>Comfortable pitch</Text>
+            <Text style={[s.baselineLabel, { top: h / 2 + 4 }]}>{L('편한 음높이', 'Comfortable pitch')}</Text>
             <Animated.View style={[s.abs, { left: shipX, top: 0, height: h, width: (round.duration + round.config.phraseSec) * round.config.pxPerSec, transform: [{ translateX: scrollX }] }]}>
               <Strip round={round} h={h} />
               <Stars round={round} h={h} got={starsGot} />
@@ -251,11 +253,13 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
         )}
 
         <View style={s.hud}>
-          <Pressable onPress={onExit} style={s.exitBtn} accessibilityRole="button" accessibilityLabel="Exit game">
-            <Text style={s.exitText}>Exit</Text>
+          <Pressable onPress={onExit} style={s.exitBtn} accessibilityRole="button" accessibilityLabel={L('게임 나가기', 'Exit game')}>
+            <Text style={s.exitText}>{L('나가기', 'Exit')}</Text>
           </Pressable>
           <View style={s.progressWrap}>
-            <Text style={s.hudSmall}>Level {round.config.level}</Text>
+            <Text style={s.hudSmall}>
+              {L('단계', 'Level')} {round.config.level}
+            </Text>
             <View style={s.progressTrack}>
               <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
             </View>
@@ -266,11 +270,13 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
           {cur ? (
             <>
               <Text style={s.phraseLabel}>{PATTERNS[cur.pattern].label}</Text>
-              <Text style={s.phraseHint}>{hud.combo >= 5 ? `Streak ${hud.combo}` : PATTERNS[cur.pattern].hint}</Text>
+              <Text style={s.phraseHint}>{hud.combo >= 5 ? L(`연속 ${hud.combo}`, `Streak ${hud.combo}`) : PATTERNS[cur.pattern].hint}</Text>
             </>
           ) : next && countdown === null && mic.status === 'running' ? (
             <>
-              <Text style={s.phraseNext}>Take a breath · Next: {PATTERNS[next.pattern].label}</Text>
+              <Text style={s.phraseNext}>
+                {L('숨 쉬기 · 다음:', 'Take a breath · Next:')} {PATTERNS[next.pattern].label}
+              </Text>
               <Text style={s.phraseHint}>{PATTERNS[next.pattern].hint}</Text>
             </>
           ) : null}
@@ -287,12 +293,18 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
         {mic.status !== 'running' && (
           <View style={s.overlay}>
             <Text style={s.overlayTitle}>
-              {mic.status === 'denied' ? 'Microphone access needed' : mic.status === 'error' ? 'Can\'t turn on the microphone' : 'Getting the microphone ready…'}
+              {mic.status === 'denied'
+                ? L('마이크 권한이 필요해요', 'Microphone access needed')
+                : mic.status === 'error'
+                  ? L('마이크를 켤 수 없어요', "Can't turn on the microphone")
+                  : L('마이크를 준비하고 있어요…', 'Getting the microphone ready…')}
             </Text>
-            {mic.status === 'denied' && <Text style={s.overlayText}>Allow microphone access for dySpeech in Settings, then start again.</Text>}
+            {mic.status === 'denied' && <Text style={s.overlayText}>
+                {L('설정에서 dySpeech의 마이크 권한을 허용한 뒤 다시 시작해 주세요.', 'Allow microphone access for dySpeech in Settings, then start again.')}
+              </Text>}
             {mic.status === 'error' && <Text style={s.overlayText}>{mic.error}</Text>}
             {(mic.status === 'denied' || mic.status === 'error') && (
-              <Pressable onPress={onExit} style={s.primaryBtn}><Text style={s.primaryBtnText}>Go back</Text></Pressable>
+              <Pressable onPress={onExit} style={s.primaryBtn}><Text style={s.primaryBtnText}>{L('돌아가기', 'Go back')}</Text></Pressable>
             )}
           </View>
         )}
@@ -303,7 +315,7 @@ export default function SpaceshipGame({ baseline, level, roundIndex = 1, onFinis
           <View style={[s.meterFill, { width: `${hud.meter * 100}%`, backgroundColor: hud.loud ? C.ship : C.dim }]} />
           <View style={[s.meterMark, { left: `${thresholdMark * 100}%` }]} />
         </View>
-        <Text style={s.footerText}>{hud.voiceText ? `Voice ${hud.voiceText}` : 'Make a sound to move the ship'}</Text>
+        <Text style={s.footerText}>{hud.voiceText ? `${L('목소리', 'Voice')} ${hud.voiceText}` : L('소리를 내면 우주선이 움직여요', 'Make a sound to move the ship')}</Text>
       </View>
     </View>
   );

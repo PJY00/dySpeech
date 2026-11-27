@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { L } from '@/i18n';
 import { colors, spacing } from '@/theme';
 
 type Props = {
@@ -19,7 +20,7 @@ type Props = {
 export function PlaceholderScreen({
   title,
   description,
-  nextLabel = '다음',
+  nextLabel,
   onNext,
   secondaryLabel,
   onSecondary,
@@ -32,7 +33,7 @@ export function PlaceholderScreen({
       footer={
         onNext ? (
           <View style={styles.actions}>
-            <PrimaryButton label={nextLabel} onPress={onNext} />
+            <PrimaryButton label={nextLabel ?? L('다음', 'Next')} onPress={onNext} />
             {secondaryLabel && onSecondary ? (
               <Pressable onPress={onSecondary} hitSlop={8}>
                 <Text style={styles.secondary}>{secondaryLabel}</Text>
@@ -45,7 +46,7 @@ export function PlaceholderScreen({
       <View style={styles.center}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.description}>{description}</Text>
-        <Text style={styles.badge}>준비 중인 화면입니다</Text>
+        <Text style={styles.badge}>{L('준비 중인 화면입니다', 'This screen is coming soon')}</Text>
       </View>
     </Screen>
   );

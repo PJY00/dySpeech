@@ -92,4 +92,6 @@ export interface GameEntry {
   /** 가장 높은 단계 */
   maxLevel: number;
   component: ComponentType<GameProps>;
+  /** 라운드 끝 화면의 판정 한 줄(지금 화면 언어). 없으면 그 줄을 보여 주지 않는다 */
+  describeRun?: (run: GameRun) => string | null;
 }

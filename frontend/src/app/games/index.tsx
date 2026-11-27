@@ -6,14 +6,16 @@ import { DomainCard } from '@/components/DomainCard';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { domains } from '@/data/domains';
+import { L, useLang } from '@/i18n';
 import { colors, spacing } from '@/theme';
 import { useTraining } from '@/training/TrainingProvider';
 
 export default function GameSelectScreen() {
+  useLang();
   const { session, roundsDone } = useTraining();
 
   return (
-    <Screen header={<ScreenHeader title="게임 선택" />}>
+    <Screen header={<ScreenHeader title={L('게임 선택', 'Choose a game')} />}>
       {domains.map((domain) => (
         <DomainCard
           key={domain.id}
@@ -24,12 +26,14 @@ export default function GameSelectScreen() {
       ))}
       <View style={styles.hint}>
         <Text style={styles.hintText}>
-          게임을 선택하면{'\n'}훈련이 시작됩니다.
+          {L('게임을 선택하면\n훈련이 시작됩니다.', 'Pick a game\nto start training.')}
         </Text>
-        <Text style={styles.rounds}>이번 회차에 한 라운드: {roundsDone}개</Text>
+        <Text style={styles.rounds}>
+          {L(`이번 회차에 한 라운드: ${roundsDone}개`, `Rounds this session: ${roundsDone}`)}
+        </Text>
         {session ? (
           <Pressable onPress={() => router.replace('/session/finishing')} hitSlop={8}>
-            <Text style={styles.finish}>오늘 훈련 끝</Text>
+            <Text style={styles.finish}>{L('오늘 훈련 끝', 'Finish for today')}</Text>
           </Pressable>
         ) : null}
       </View>

@@ -8,6 +8,7 @@ import { Alert } from 'react-native';
 import { router, type Href } from 'expo-router';
 
 import type { GameEntry } from '../games/registry';
+import { L } from '../i18n/lang';
 import { isTempGame } from '../games/temp';
 import {
   currentUser,
@@ -181,7 +182,10 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       }
       if (reportedToday(await listSessions())) {
         setTrainedToday(true);
-        Alert.alert('오늘 훈련을 마쳤어요', '측정은 하루에 한 번만 해요. 내일 다시 만나요!');
+        Alert.alert(
+          L('오늘 훈련을 마쳤어요', "Today's training is done"),
+          L('측정은 하루에 한 번만 해요. 내일 다시 만나요!', 'Measurement is once a day. See you tomorrow!'),
+        );
         return;
       }
       await openNewSession('training');

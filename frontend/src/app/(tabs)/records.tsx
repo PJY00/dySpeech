@@ -12,21 +12,22 @@ import { SegmentedTabs } from '@/components/SegmentedTabs';
 import { SessionCards } from '@/components/SessionCards';
 import { domains, type DomainId } from '@/data/domains';
 import type { MetricName } from '@/session';
+import { L, useLang } from '@/i18n';
 import { colors, spacing } from '@/theme';
-import { METRIC_LABELS } from '@/training/labels';
+import { metricLabel } from '@/training/labels';
 import { useTraining } from '@/training/TrainingProvider';
 import { findMetric, percentSeries, sessionRows, useHistory } from '@/training/useHistory';
 
 type Filter = 'all' | DomainId;
 
-const filterOptions: { value: Filter; label: string }[] = [
-  { value: 'all', label: '전체' },
-  ...domains.map((d) => ({ value: d.id as Filter, label: d.shortTitle })),
-];
-
 const LINE_COLORS = ['#2FAF97', '#4A7CF0', '#8E5CF0'];
 
 export default function RecordsScreen() {
+  useLang();
+  const filterOptions: { value: Filter; label: string }[] = [
+    { value: 'all', label: L('전체', 'All') },
+    ...domains.map((d) => ({ value: d.id as Filter, label: d.shortTitle })),
+  ];
   const [filter, setFilter] = useState<Filter>('all');
   const { cards } = useTraining();
   const { history, loading, error } = useHistory();
@@ -36,7 +37,7 @@ export default function RecordsScreen() {
       ? domains.map((d) => ({ metric: d.metrics[0], color: d.color }))
       : (domains.find((d) => d.id === filter)?.metrics ?? []).map((metric, i) => ({ metric, color: LINE_COLORS[i % LINE_COLORS.length] }));
   const series: ChartSeries[] = metrics
-    .map(({ metric, color }) => ({ label: METRIC_LABELS[metric], color, values: percentSeries(findMetric(history, metric)) }))
+    .map(({ metric, color }) => ({ label: metricLabel(metric), color, values: percentSeries(findMetric(history, metric)) }))
     .filter((s) => s.values.length > 0);
   const count = Math.max(0, ...series.map((s) => s.values.length));
 
@@ -47,11 +48,11 @@ export default function RecordsScreen() {
     <Screen
       header={
         <ScreenHeader
-          title="기록"
+          title={L('기록', 'Records')}
           back={false}
           right={
             <Pressable onPress={() => router.push('/clinician')} hitSlop={8}>
-              <Text style={styles.demoLink}>임상 기록</Text>
+              <Text style={styles.demoLink}>{L('임상 기록', 'Clinical')}</Text>
             </Pressable>
           }
         />
@@ -62,25 +63,25 @@ export default function RecordsScreen() {
       <SegmentedTabs options={filterOptions} value={filter} onChange={setFilter} />
 
       <Card>
-        <Text style={styles.sectionTitle}>지표별 변화 추이 (기준선 대비 %)</Text>
+        <Text style={styles.sectionTitle}>{L('지표별 변화 추이 (기준선 대비 %)', 'Change by metric (% vs. baseline)')}</Text>
         {series.length > 0 ? (
-          <LineChart series={series} xLabels={count > 1 ? ['1회차', `${count}회차`] : ['1회차']} />
+          <LineChart series={series} xLabels={count > 1 ? [L('1회차', 'S1'), L(`${count}회차`, `S${count}`)] : [L('1회차', 'S1')]} />
         ) : (
-          <Text style={styles.empty}>{loading ? '불러오는 중…' : (error ?? '아직 서버 기록이 없어요.')}</Text>
+          <Text style={styles.empty}>{loading ? L('불러오는 중…', 'Loading…') : (error ?? L('아직 서버 기록이 없어요.', 'No server records yet.'))}</Text>
         )}
       </Card>
 
       <Card>
         <View style={styles.cardHeader}>
-          <Text style={styles.sectionTitle}>최근 기록</Text>
+          <Text style={styles.sectionTitle}>{L('최근 기록', 'Recent records')}</Text>
           <Pressable onPress={() => router.push('/history')} hitSlop={8}>
-            <Text style={styles.link}>전체 보기 ›</Text>
+            <Text style={styles.link}>{L('전체 보기 ›', 'See all ›')}</Text>
           </Pressable>
         </View>
         {recent.length > 0 ? (
           recent.map(({ row, index }) => <RecordRow key={row.sessionId} row={row} index={index} />)
         ) : (
-          <Text style={styles.empty}>아직 기록이 없어요.</Text>
+          <Text style={styles.empty}>{L('아직 기록이 없어요.', 'No records yet.')}</Text>
         )}
       </Card>
     </Screen>

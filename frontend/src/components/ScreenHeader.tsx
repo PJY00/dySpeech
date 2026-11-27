@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
+import { L } from '@/i18n';
 import { colors, spacing } from '@/theme';
 
 type Props = {
@@ -16,7 +17,7 @@ export function ScreenHeader({ title, back = true, right }: Props) {
     <View style={styles.header}>
       <View style={styles.side}>
         {back ? (
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="뒤로 가기">
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel={L('뒤로 가기', 'Go back')}>
             <Ionicons name="chevron-back" size={24} color={colors.text} />
           </Pressable>
         ) : null}

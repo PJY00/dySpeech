@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router/js-tabs';
 
+import { L, useLang } from '@/i18n';
 import { colors } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -14,6 +15,7 @@ function tabIcon(name: IconName) {
 }
 
 export default function TabLayout() {
+  useLang();
   return (
     <Tabs
       screenOptions={{
@@ -22,9 +24,9 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.mutedText,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: '홈', tabBarIcon: tabIcon('home') }} />
-      <Tabs.Screen name="records" options={{ title: '기록', tabBarIcon: tabIcon('stats-chart') }} />
-      <Tabs.Screen name="settings" options={{ title: '설정', tabBarIcon: tabIcon('settings-outline') }} />
+      <Tabs.Screen name="index" options={{ title: L('홈', 'Home'), tabBarIcon: tabIcon('home') }} />
+      <Tabs.Screen name="records" options={{ title: L('기록', 'Records'), tabBarIcon: tabIcon('stats-chart') }} />
+      <Tabs.Screen name="settings" options={{ title: L('설정', 'Settings'), tabBarIcon: tabIcon('settings-outline') }} />
     </Tabs>
   );
 }

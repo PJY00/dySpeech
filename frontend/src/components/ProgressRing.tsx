@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
+import { L } from '@/i18n';
 import { colors } from '@/theme';
 
 type Props = {
@@ -37,7 +38,7 @@ export function ProgressRing({ done, total, size = 84 }: Props) {
         <Text style={styles.count}>
           {done}/{total}
         </Text>
-        <Text style={styles.caption}>게임 완료</Text>
+        <Text style={styles.caption}>{L('게임 완료', 'completed')}</Text>
       </View>
     </View>
   );

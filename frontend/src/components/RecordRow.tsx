@@ -1,6 +1,7 @@
 // 회차 한 줄: 회차·날짜와 진전도 지표 3개(평균 음량 변화, 조음속도, 무음 비율)
 import { StyleSheet, Text, View } from 'react-native';
 
+import { L } from '@/i18n';
 import { colors, spacing } from '@/theme';
 import type { SessionRow } from '@/training/useHistory';
 
@@ -10,14 +11,14 @@ export function RecordRow({ row, index }: { row: SessionRow; index: number }) {
   return (
     <View style={styles.row}>
       <View style={styles.title}>
-        <Text style={styles.session}>{index}회차</Text>
+        <Text style={styles.session}>{L(`${index}회차`, `Session ${index}`)}</Text>
         <Text style={styles.date}>
           {date.getFullYear()}.{String(date.getMonth() + 1).padStart(2, '0')}.{String(date.getDate()).padStart(2, '0')}
         </Text>
       </View>
-      <RecordValue label="음량 변화" value={v.mean_level_change !== undefined ? `${v.mean_level_change.toFixed(1)} dB` : '–'} />
-      <RecordValue label="조음속도" value={v.articulation_rate !== undefined ? v.articulation_rate.toFixed(2) : '–'} />
-      <RecordValue label="무음 비율" value={v.pause_ratio !== undefined ? `${v.pause_ratio.toFixed(0)}%` : '–'} />
+      <RecordValue label={L('음량 변화', 'Level change')} value={v.mean_level_change !== undefined ? `${v.mean_level_change.toFixed(1)} dB` : '–'} />
+      <RecordValue label={L('조음속도', 'Artic. rate')} value={v.articulation_rate !== undefined ? v.articulation_rate.toFixed(2) : '–'} />
+      <RecordValue label={L('무음 비율', 'Pause ratio')} value={v.pause_ratio !== undefined ? `${v.pause_ratio.toFixed(0)}%` : '–'} />
     </View>
   );
 }

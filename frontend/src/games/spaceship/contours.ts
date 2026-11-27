@@ -1,14 +1,29 @@
+import { L } from '../../i18n/lang';
+
 export type PatternId = 'level' | 'rise' | 'fall' | 'riseFall' | 'fallRise' | 'stepUp';
 
 type Key = readonly [u: number, v: number];
 
-export const PATTERNS: Record<PatternId, { label: string; hint: string; keys: readonly Key[] }> = {
-  level: { label: 'Steady', hint: 'Hold a long, comfortable "ahh"', keys: [[0, 0], [1, 0]] },
-  rise: { label: 'Rise ↗', hint: 'Go up at the end, like a question', keys: [[0, -0.3], [0.35, -0.3], [1, 0.7]] },
-  fall: { label: 'Fall ↘', hint: 'Go down at the end, like finishing a sentence', keys: [[0, 0.5], [0.35, 0.5], [1, -0.5]] },
-  riseFall: { label: 'Up, then down', hint: 'Go high in the middle', keys: [[0, -0.3], [0.5, 0.7], [1, -0.3]] },
-  fallRise: { label: 'Down, then up', hint: 'Go low in the middle', keys: [[0, 0.5], [0.5, -0.5], [1, 0.5]] },
-  stepUp: { label: 'Step up', hint: 'Jump up once halfway', keys: [[0, -0.3], [0.4, -0.3], [0.6, 0.7], [1, 0.7]] },
+/** 이름·힌트는 [한국어, 영어]. 화면 언어에 맞춰 읽힌다 */
+function pattern(label: [string, string], hint: [string, string], keys: readonly Key[]) {
+  return {
+    get label() {
+      return L(...label);
+    },
+    get hint() {
+      return L(...hint);
+    },
+    keys,
+  };
+}
+
+export const PATTERNS: Record<PatternId, { readonly label: string; readonly hint: string; keys: readonly Key[] }> = {
+  level: pattern(['평평하게', 'Steady'], ['편한 "아~"를 길게 유지해요', 'Hold a long, comfortable "ahh"'], [[0, 0], [1, 0]]),
+  rise: pattern(['올리기 ↗', 'Rise ↗'], ['질문할 때처럼 끝을 올려요', 'Go up at the end, like a question'], [[0, -0.3], [0.35, -0.3], [1, 0.7]]),
+  fall: pattern(['내리기 ↘', 'Fall ↘'], ['말을 맺을 때처럼 끝을 내려요', 'Go down at the end, like finishing a sentence'], [[0, 0.5], [0.35, 0.5], [1, -0.5]]),
+  riseFall: pattern(['올렸다 내리기', 'Up, then down'], ['가운데에서 높게 올려요', 'Go high in the middle'], [[0, -0.3], [0.5, 0.7], [1, -0.3]]),
+  fallRise: pattern(['내렸다 올리기', 'Down, then up'], ['가운데에서 낮게 내려요', 'Go low in the middle'], [[0, 0.5], [0.5, -0.5], [1, 0.5]]),
+  stepUp: pattern(['계단 오르기', 'Step up'], ['중간에서 한 번 훌쩍 올려요', 'Jump up once halfway'], [[0, -0.3], [0.4, -0.3], [0.6, 0.7], [1, 0.7]]),
 };
 
 export function patternValue(id: PatternId, u: number): number {
