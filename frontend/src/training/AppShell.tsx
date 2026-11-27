@@ -10,6 +10,7 @@ import {
   currentUser,
   discardRecordingFile,
   listSessions,
+  listTrainingBaselines,
   openSession,
   refreshStatuses,
   resumePending,
@@ -59,6 +60,8 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
   const [olderUnsent, setOlderUnsent] = useState(0);
   const [devRuns, setDevRuns] = useState<GameRun[]>([]);
   const session = useRef<Session | null>(null);
+  /** 이번 회차보다 앞선 훈련 회차의 기준값(회차를 열 때 읽어 둠) */
+  const earlier = useRef<Baselines[]>([]);
   const finishingStarted = useRef(false);
   /** 지금 화면의 결과 기다리기(4초 상태 확인). 화면을 떠나면 멈춘다. 보내기는 세션 모듈이 계속한다 */
   const waitAbort = useRef<AbortController | null>(null);
@@ -125,12 +128,13 @@ export function AppShell({ dev, notice: initialNotice }: { dev?: DevStart; notic
     setProgress(null);
     finishingStarted.current = false;
     session.current = await startSession(purpose);
+    earlier.current = purpose === 'training' ? await listTrainingBaselines().catch(() => []) : [];
     log('session_started', { session_id: session.current.id, purpose });
     dispatch({ type: 'start', purpose });
   }
 
   function onMeasured(b: Baselines) {
-    setBaselines(gameBaselines(b));
+    setBaselines(gameBaselines(b, earlier.current));
     dispatch({ type: 'measured' });
   }
 

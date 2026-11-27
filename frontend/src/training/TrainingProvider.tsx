@@ -14,6 +14,7 @@ import {
   currentUser,
   discardRecordingFile,
   listSessions,
+  listTrainingBaselines,
   resumePending,
   startAutoSync,
   startSession,
@@ -84,6 +85,8 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   const [unfinished, setUnfinished] = useState<Session[]>([]);
   const [trainedToday, setTrainedToday] = useState(false);
   const sessionRef = useRef<Session | null>(null);
+  /** 이번 회차보다 앞선 훈련 회차의 기준값(회차를 열 때 읽어 둠) */
+  const earlierRef = useRef<Baselines[]>([]);
   const roundsRef = useRef<Record<string, number>>({});
   const levels = useMemo(() => new LevelBook(stateStore), []);
   const today = useMemo(() => new TodayBook(stateStore), []);
@@ -124,7 +127,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
         const measured = reopen?.baselines();
         if (reopen && measured) {
           setCurrent(reopen);
-          setBaselines(gameBaselines(measured));
+          setBaselines(gameBaselines(measured, await listTrainingBaselines().catch(() => [])));
           setRoundCounts(doc?.sessionId === reopen.id ? doc.rounds : {});
           log('session_reopened', { session_id: reopen.id });
         }
@@ -146,6 +149,8 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     async (purpose: 'training' | 'retest') => {
       const s = await startSession(purpose);
       log('session_started', { session_id: s.id, purpose });
+      // 게임 기준값(최근 3회차 중앙값)에 쓸 지난 훈련 회차 값을 미리 읽어 둔다. 측정 블록이 끝나면 바로 계산한다
+      earlierRef.current = purpose === 'training' ? await listTrainingBaselines().catch(() => []) : [];
       setCurrent(s);
       setBaselines(null);
       setRoundCounts({});
@@ -198,7 +203,9 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
 
   const onMeasured = useCallback(
     (b: Baselines) => {
-      setBaselines(gameBaselines(b));
+      const forGames = gameBaselines(b, earlierRef.current);
+      setBaselines(forGames);
+      log('game_baselines', { session_id: b.sessionId, earlier_sessions: earlierRef.current.length, ...forGames });
       const s = sessionRef.current;
       if (s?.purpose === 'training') void openBook.write({ sessionId: s.id, rounds: {}, lastActivityAt: b.measuredAt });
     },

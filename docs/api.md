@@ -1,6 +1,6 @@
 # dySpeech API 명세
 
-- 버전: **0.2.1** (서버의 `/openapi.json`에서 `info.version`)
+- 버전: **0.2.2** (서버의 `/openapi.json`에서 `info.version`)
 - 대상: 앱 개발자. 이 문서와 [`openapi.json`](openapi.json)이 서버와 앱이 맞춰야 할 기준이다.
 - 바뀐 내용은 [`api-changelog.md`](api-changelog.md)에 적는다. 지표의 정의와 계산 방법은 [`metrics-spec.md`](metrics-spec.md)에 있다.
 
@@ -35,7 +35,8 @@
 
 0.2.0부터 서버는 요청을 실제로 저장하고, 업로드 URL로 S3에 실제로 올라간다. 0.2.1부터 complete 뒤 서버가 녹음에서 지표를 계산해 세션이 `done` 또는 `failed`가 되고, 진전도에 값이 들어간다.
 
-- 최소 측정 가능 변화량은 반복 측정 분석 전이라 아직 없다(`null`). 그래서 값이 있는 진전도 지표의 판정은 `pending_mdc`(또는 최근 값이 신뢰 낮음이면 `low_reliability`)다.
+- 최소 측정 가능 변화량은 2026-11-22부터 진전도 지표 7개에 들어 있다(4.7). 이 지표들의 판정은 `no_change`, `increase`, `decrease`(또는 최근 값이 신뢰 낮음이면 `low_reliability`)로 나온다.
+- 무음 비율(`pause_ratio`)만 최소 측정 가능 변화량이 없다(`null`). 반복 측정에서 값이 모두 0%여서 계산할 수 없었다([`validation.md`](validation.md) 4장). 이 지표의 판정은 `pending_mdc`(또는 `low_reliability`)로 남는다.
 
 ---
 
@@ -476,14 +477,14 @@ complete 뒤 `status`가 `done` 또는 `failed`가 될 때까지 가끔 확인�
 ```json
 {
   "metrics": [
-    {"metric": "max_phonation_time", "unit": "s", "desired_direction": "up", "mdc": null},
-    {"metric": "loudness_decay_slope", "unit": "dB/s", "desired_direction": "up", "mdc": null},
-    {"metric": "mean_level_change", "unit": "dB", "desired_direction": "none", "mdc": null},
-    {"metric": "articulation_rate", "unit": "syllables/s", "desired_direction": "none", "mdc": null},
-    {"metric": "speech_rate", "unit": "syllables/s", "desired_direction": "none", "mdc": null},
+    {"metric": "max_phonation_time", "unit": "s", "desired_direction": "up", "mdc": {"value": 2.4327, "scale": "raw"}},
+    {"metric": "loudness_decay_slope", "unit": "dB/s", "desired_direction": "up", "mdc": {"value": 0.9858, "scale": "raw"}},
+    {"metric": "mean_level_change", "unit": "dB", "desired_direction": "none", "mdc": {"value": 4.4988, "scale": "raw"}},
+    {"metric": "articulation_rate", "unit": "syllables/s", "desired_direction": "none", "mdc": {"value": 0.7277, "scale": "raw"}},
+    {"metric": "speech_rate", "unit": "syllables/s", "desired_direction": "none", "mdc": {"value": 0.7277, "scale": "raw"}},
     {"metric": "pause_ratio", "unit": "%", "desired_direction": "none", "mdc": null},
-    {"metric": "f0_sd_semitones", "unit": "semitones", "desired_direction": "up", "mdc": null},
-    {"metric": "pitch_range_semitones", "unit": "semitones", "desired_direction": "up", "mdc": null},
+    {"metric": "f0_sd_semitones", "unit": "semitones", "desired_direction": "up", "mdc": {"value": 0.8261, "scale": "raw"}},
+    {"metric": "pitch_range_semitones", "unit": "semitones", "desired_direction": "up", "mdc": {"value": 1.9075, "scale": "raw"}},
     {"metric": "sustained_level", "unit": "dBFS", "desired_direction": "none", "mdc": null},
     {"metric": "f0_median", "unit": "Hz", "desired_direction": "none", "mdc": null},
     {"metric": "noise_floor", "unit": "dBFS", "desired_direction": "none", "mdc": null}
@@ -492,7 +493,10 @@ complete 뒤 `status`가 `done` 또는 `failed`가 될 때까지 가끔 확인�
 ```
 
 - `desired_direction`: 지표가 어느 쪽으로 움직이길 바라는지(`up`, `down`, `none`). 서버는 좋아짐·나빠짐을 판정하지 않는다. 화면에서 해석할 때 참고하는 값이다. 말속도 지표는 `none`이다.
-- `mdc`: 최소 측정 가능 변화량(`value`, `scale`). 반복 측정 분석으로 정해지기 전에는 `null`이다.
+- `mdc`: 최소 측정 가능 변화량(`value`, `scale`). 값이 정해지지 않은 지표는 `null`이다.
+  - 위 예시는 2026-11-22에 반영한 값이다. 진전도 지표 7개에 값이 있고 모두 원 척도(`raw`)다. 구한 방법은 [`validation.md`](validation.md) 4장에 있다.
+  - 무음 비율은 계산할 수 없어 `null`이다. 보조 지표 3개는 진전도에 쓰지 않으므로 `null`이다.
+  - 반복 측정을 다시 계산하면 값이 바뀔 수 있다. 앱은 값을 코드에 적어 두지 말고 응답으로 받은 값을 쓴다.
 
 ### 4.8 녹음 열람 URL `GET /v1/recordings/{recording_id}/url`
 
@@ -625,7 +629,7 @@ complete 뒤 `status`가 `done` 또는 `failed`가 될 때까지 가끔 확인�
 | `baseline` | 기준선 회차의 `session_id`, `value` | `null` |
 | `series` | 회차별 `session_id`, `started_at`, `value`, `low_reliability`(오래된 회차부터) | 빈 목록 |
 | `latest` | 최근 회차의 `value`와 `change` | `null` |
-| `mdc` | 최소 측정 가능 변화량 `value`, `scale`(`raw` / `log`) | `null`(아직 정해지지 않음) |
+| `mdc` | 최소 측정 가능 변화량 `value`, `scale`(`raw` / `log`) | `null`(정해지지 않은 지표. 지금은 무음 비율) |
 | `status` | 변화 판정(8.2) | `no_data` |
 
 ### 8.2 변화량과 판정
@@ -651,6 +655,8 @@ complete 뒤 `status`가 `done` 또는 `failed`가 될 때까지 가끔 확인�
 아래 예시는 판정 종류를 모두 보여주려고 만든 값이다.
 - `pitch_range_semitones`는 값이 없는 경우(`no_data`)를 보여준다.
 - `articulation_rate`는 로그 척도라서 `change`가 퍼센트다.
+- `pause_ratio`는 최소 측정 가능 변화량이 없는 경우(`pending_mdc`)를, `speech_rate`는 최근 값이 신뢰 낮음인 경우(`low_reliability`)를 보여준다.
+- `mdc`의 값과 척도도 예시다. 실제 서버 값은 4.7에 있고, 지금은 모두 원 척도다.
 
 <!-- example: History -->
 ```json
@@ -693,8 +699,8 @@ complete 뒤 `status`가 `done` 또는 `failed`가 될 때까지 가끔 확인�
         {"session_id": "5d2e9c47-1a3b-4f6e-8d7c-2b4a6e8f0a12", "started_at": "2026-11-27T09:15:00Z", "value": 1.2, "low_reliability": false}
       ],
       "latest": {"value": 1.2, "change": 1.2},
-      "mdc": null,
-      "status": "pending_mdc"
+      "mdc": {"value": 4.5, "scale": "raw"},
+      "status": "no_change"
     },
     {
       "metric": "articulation_rate",
@@ -716,11 +722,11 @@ complete 뒤 `status`가 `done` 또는 `failed`가 될 때까지 가끔 확인�
       "baseline": {"session_id": "8c41e7d2-5b3a-4f19-a6e2-9d0c7b1f3a58", "value": 3.5},
       "series": [
         {"session_id": "8c41e7d2-5b3a-4f19-a6e2-9d0c7b1f3a58", "started_at": "2026-11-20T09:15:00Z", "value": 3.5, "low_reliability": false},
-        {"session_id": "5d2e9c47-1a3b-4f6e-8d7c-2b4a6e8f0a12", "started_at": "2026-11-27T09:15:00Z", "value": 3.8, "low_reliability": false}
+        {"session_id": "5d2e9c47-1a3b-4f6e-8d7c-2b4a6e8f0a12", "started_at": "2026-11-27T09:15:00Z", "value": 3.8, "low_reliability": true}
       ],
       "latest": {"value": 3.8, "change": 0.3},
-      "mdc": null,
-      "status": "pending_mdc"
+      "mdc": {"value": 0.73, "scale": "raw"},
+      "status": "low_reliability"
     },
     {
       "metric": "pause_ratio",
@@ -729,11 +735,11 @@ complete 뒤 `status`가 `done` 또는 `failed`가 될 때까지 가끔 확인�
       "baseline": {"session_id": "8c41e7d2-5b3a-4f19-a6e2-9d0c7b1f3a58", "value": 14.6},
       "series": [
         {"session_id": "8c41e7d2-5b3a-4f19-a6e2-9d0c7b1f3a58", "started_at": "2026-11-20T09:15:00Z", "value": 14.6, "low_reliability": false},
-        {"session_id": "5d2e9c47-1a3b-4f6e-8d7c-2b4a6e8f0a12", "started_at": "2026-11-27T09:15:00Z", "value": 11.0, "low_reliability": true}
+        {"session_id": "5d2e9c47-1a3b-4f6e-8d7c-2b4a6e8f0a12", "started_at": "2026-11-27T09:15:00Z", "value": 11.0, "low_reliability": false}
       ],
       "latest": {"value": 11.0, "change": -3.6},
-      "mdc": {"value": 5.0, "scale": "raw"},
-      "status": "low_reliability"
+      "mdc": null,
+      "status": "pending_mdc"
     },
     {
       "metric": "f0_sd_semitones",

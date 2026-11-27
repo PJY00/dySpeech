@@ -13,7 +13,7 @@ from app.log_config import configure_logging
 from app.settings import Settings, get_settings, require_operating_settings
 
 # OpenAPI 문서의 info.version. API 명세가 바뀌면 올리고 api-changelog에 적는다.
-API_VERSION = "0.2.1"
+API_VERSION = "0.2.2"
 
 router = APIRouter(
     prefix="/v1",

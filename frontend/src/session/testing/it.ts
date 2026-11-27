@@ -19,6 +19,7 @@ import type { RecordingInput } from '../types';
 import { encodeWav } from '../wav';
 import { FsStore } from './fsStore';
 import { measurementBlock, RATE } from './synth';
+import type { BlockVariation } from './synth';
 
 export const IT_URL = process.env.DYSPEECH_IT_URL;
 export const IT_KEY = process.env.DYSPEECH_IT_KEY;
@@ -55,9 +56,9 @@ export async function rememberForCleanup(userId: string): Promise<void> {
   await writeFile(CLEANUP, JSON.stringify(doc, null, 2));
 }
 
-/** 측정 블록 화면과 같은 순서로 녹음을 검사·추가하고 기기 지표·기준값을 저장한다 */
-export async function runMeasurementBlock(session: Session, dir: string, seed: number): Promise<void> {
-  const block = measurementBlock(seed);
+/** 측정 블록 화면과 같은 순서로 녹음을 검사·추가하고 기기 지표·기준값을 저장한다. vary로 회차마다 값을 다르게 만든다 */
+export async function runMeasurementBlock(session: Session, dir: string, seed: number, vary: BlockVariation = {}): Promise<void> {
+  const block = measurementBlock(seed, vary);
   const steps: [StepId, Float32Array, (uri: string) => RecordingInput][] = [
     ['glide', block.glide, (fileUri) => ({ kind: 'calibration_glide', fileUri })],
     ['noise', block.noiseFloor, (fileUri) => ({ kind: 'noise_floor', fileUri })],

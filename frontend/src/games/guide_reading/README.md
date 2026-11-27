@@ -65,13 +65,16 @@
 
 ## 기준 말속도
 
-- 처음: 측정 블록 기준값(`baselines.articulationRateSps`, s1 낭독의 기기 조음속도)이 있으면 그 값, 없으면 4.0음절/초
-- 회차마다(라운드 시작 때 진전도를 읽음): 진전도의 `articulation_rate` 판정은 "다시 잡을지"만 정한다.
-  - `increase`·`decrease`면 그날 측정 블록의 기기 조음속도로 다시 잡는다. 서버 값을 쓰지 않는 것은 게임 안 말속도를 기기 방식으로 재기 때문이다(실제 녹음 하나에서 기기 값이 서버보다 11% 낮았다: 6.58 대 7.37).
-  - 그날 기기 조음속도가 없으면(null) 저장된 값을 유지한다.
-  - `no_change`·`pending_mdc`(그 밖)면 유지한다. 진전도를 3초 안에 받지 못해도 유지한다.
-- 지금은 최소 측정 가능 변화량이 없어 판정이 늘 `pending_mdc`이므로 기준 말속도가 첫 회차 값에 머문다. 최소 측정 가능 변화량이 채워지면 움직이기 시작한다.
-- 사용자별로 기기에 저장한다(`games/guide_reading.json`, 키는 `GameProps.userKey`). 범위는 1.5~9음절/초
+- 기준 말속도 = 앱이 넘겨준 기준값(`baselines.articulationRateSps`)이다. **오늘을 포함한 최근 3회차** 측정 블록에서 s1을 읽은 기기 조음속도의 **중앙값**이다(이슈 #41). 다른 게임의 기준값과 같은 규칙이고, 계산은 앱이 한다(`src/training/gameTypes.ts`의 `gameBaselines`).
+  - 1회차는 그날 값, 2회차는 두 값의 평균, 3회차부터는 세 값의 중앙값이다.
+  - 최근 3회차 가운데 값을 구하지 못한 회차는 빼고 구한다. 반복 측정 회차는 세지 않는다.
+  - 낭독 한 번의 값을 그대로 쓰지 않는 이유: 같은 사람도 날마다 흔들린다(반복 측정에서 조음속도 ±0.73음절/초, [`docs/validation.md`](../../../../docs/validation.md) 4.3). 측정 때 서둘러 읽은 날의 값이 그날 안내 속도가 되지 않게 한다(이슈 #32).
+  - 서버 값을 쓰지 않는 것은 게임 안 말속도를 기기 방식으로 재기 때문이다(실제 앱 세션 15개에서 기기 값이 서버보다 평균 6.7% 낮았다, `docs/validation.md` 5장).
+- 최근 3회차에 조음속도가 하나도 없으면(null) 저장된 값을 유지한다. 저장된 값도 없으면 4.0음절/초다.
+- 서버 진전도 판정은 쓰지 않는다. 라운드를 시작할 때 서버를 기다리지 않는다.
+  - 이전 규칙은 "첫 회차 값을 저장해 두고, 진전도의 `articulation_rate` 판정이 `increase`·`decrease`일 때만 그날 값으로 갱신"이었다. 이전 버전이 저장한 첫 회차 값은 새 규칙의 값으로 덮어쓴다.
+- 사용자별로 기기에 저장한다(`games/guide_reading.json`, 키는 `GameProps.userKey`). 범위는 1.5~9음절/초. 같은 파일의 검출 비율은 그대로 이어 쓴다.
+- 개발용 바로가기(`userKey`가 `dev`)는 임시 기준값 4.0음절/초가 그대로 들어온다.
 
 ## 음절 핵 검출 (진행 표시와 변동계수용)
 
@@ -101,7 +104,7 @@
 
 ## 라운드 기록 (`game_runs`, api.md 7.2)
 
-- `params`: `sentence_ids`, `target_rate_range`[아래, 위](음절/초), `guide_rate`, `cv_max`, `reference_rate`, `reference_source`(`baseline` / `default` / `stored` / `rebaseline`)
+- `params`: `sentence_ids`, `target_rate_range`[아래, 위](음절/초), `guide_rate`, `cv_max`, `reference_rate`, `reference_source`(`recent_median`: 최근 3회차 중앙값 / `stored`: 값이 없어 저장된 값 유지 / `default`: 기본값. 이전 버전 기록에는 `baseline`, `rebaseline`이 있다)
 - `params.sentence_ids`는 라운드의 문장 5개(다시 읽기로 결과 줄이 더 많아도 같음)
 - `result.sentences[]`: 시도마다 한 줄. `sentence_id`, `syllables`, `articulation_rate`(판정 안 한 시도는 null), `cv`(구하지 못하면 null), `rhythm_checked`, `detected_syllables`, `speech_s`, `end_reason`(`progress` / `after_guide` / `max`), `judged`, `passed`, `reason`(`fast` / `slow` / `uneven` / `no_speech` / `incomplete`, 통과면 null)
 - 문장 녹음은 판정 뒤 지운다(라운드 녹음은 올리지 않음).
