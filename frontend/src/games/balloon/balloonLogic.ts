@@ -180,6 +180,9 @@ export function stepBalloon(
 /** 소리 낸 시간 비율이 이보다 낮으면 반복으로 치지 않는다 (%) */
 export const MIN_VOICED_PCT = 30;
 
+/** 목표를 못 채운 라운드의 성공률이 이보다 낮으면 한 단계 내린다(2단계 이상, %). 서버에 남는 success_rate_pct와 같은 값으로 비교한다 */
+export const DOWN_BELOW_PCT = 50;
+
 export type RoundSummary = {
   /** 서버로 보내는 성공률(%, 0~100) = 목표 유지 시간 대비 가장 오래 유지한 시간(100 상한) */
   successRatePct: number;
@@ -193,8 +196,9 @@ const round1 = (x: number) => Math.round(x * 10) / 10;
 
 /**
  * - 목표를 채웠으면 다음 단계(up), 최고 단계면 그대로(hold)
- * - 못 채웠으면 그 단계 그대로(hold). 단계를 내리지 않는다
- * - 소리가 거의 안 난 라운드는 세지 않는다(deferred)
+ * - 못 채웠고 성공률이 DOWN_BELOW_PCT 미만이면 한 단계 내림(down). 1단계는 그대로(hold)
+ * - 그 밖에 못 채웠으면 그 단계 그대로(hold)
+ * - 소리가 거의 안 난 라운드는 세지 않는다(deferred). 내림보다 먼저 본다
  */
 export function summarizeRound(state: BalloonState, level: number, target: BalloonTarget): RoundSummary {
   const total = state.elapsed;
@@ -212,7 +216,9 @@ export function summarizeRound(state: BalloonState, level: number, target: Ballo
     };
   }
   if (!state.passed) {
-    return { ...base, decision: 'hold', reason: 'Try this level once more' };
+    return level > 1 && successRatePct < DOWN_BELOW_PCT
+      ? { ...base, decision: 'down', reason: "Let's try one level easier" }
+      : { ...base, decision: 'hold', reason: 'Try this level once more' };
   }
   return level < MAX_LEVEL
     ? { ...base, decision: 'up', reason: 'Goal reached - moving up a level' }
