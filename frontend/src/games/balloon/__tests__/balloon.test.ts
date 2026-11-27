@@ -5,6 +5,7 @@ import type { BalloonMode, BalloonState } from '../balloonLogic';
 import {
   DEFAULT_MPT_S,
   diffStats,
+  DOWN_BELOW_PCT,
   getLevel,
   GRACE_S,
   initialState,
@@ -176,19 +177,47 @@ test('성공률은 목표를 채웠으면 항상 100%다 (앱이 80% 이상을 �
 });
 
 test('못 채우면 같은 단계로 두고 성공률은 목표 대비 가장 오래 유지한 비율이다', () => {
-  let s = run(initialState('protect'), 7, 1.5); // 1.5초 유지(목표 3초의 50%)
+  let s = run(initialState('protect'), 7, 2.1); // 2.1초 유지(목표 3초의 70%)
   s = run(s, 0, ROUND_SECONDS); // 이후 끊김
   assert.equal(s.passed, false);
   const sum = summarizeRound(s, 3, T);
   assert.equal(sum.decision, 'hold');
-  assert.ok(Math.abs(sum.successRatePct - 50) < 2);
+  assert.ok(Math.abs(sum.successRatePct - 70) < 2);
 });
 
-test('단계를 내리지 않는다', () => {
-  const failed = run(initialState('protect'), 0, ROUND_SECONDS + 1);
-  for (let level = 1; level <= MAX_LEVEL; level++) {
-    assert.notEqual(summarizeRound(failed, level, T).decision, 'down');
-  }
+/** 소리는 내내 났고 목표는 못 채운 채 끝난 라운드. 가장 오래 유지한 시간만 정한다 */
+function failedWith(bestHold: number): BalloonState {
+  return { ...initialState('protect'), bestHold, elapsed: ROUND_SECONDS, voicedTime: ROUND_SECONDS };
+}
+
+test('못 채우고 성공률이 50% 미만이면 2단계부터 한 단계 내린다(49.9%는 내림, 50%는 유지)', () => {
+  assert.equal(DOWN_BELOW_PCT, 50);
+  const below = summarizeRound(failedWith(1.497), 2, T); // 목표 3초의 49.9%
+  assert.equal(below.successRatePct, 49.9);
+  assert.equal(below.decision, 'down');
+  const at = summarizeRound(failedWith(1.5), 2, T); // 50%
+  assert.equal(at.successRatePct, 50);
+  assert.equal(at.decision, 'hold');
+  assert.equal(summarizeRound(failedWith(1.497), MAX_LEVEL, T).decision, 'down', '가장 높은 단계에서도 내린다');
+});
+
+test('1단계는 더 내릴 곳이 없어 성공률이 0%여도 같은 단계로 둔다', () => {
+  const sum = summarizeRound(failedWith(0), 1, T);
+  assert.equal(sum.successRatePct, 0);
+  assert.equal(sum.decision, 'hold');
+});
+
+test('소리는 냈지만 목표 음량에 한 번도 못 미친 라운드는 2단계부터 내린다', () => {
+  const s = run(initialState('protect'), 0, ROUND_SECONDS + 1); // 소리는 남, 목표(+6 dB)에는 못 미침
+  assert.equal(s.passed, false);
+  for (let level = 2; level <= MAX_LEVEL; level++) assert.equal(summarizeRound(s, level, T).decision, 'down');
+});
+
+test('목표를 채운 라운드와 소리가 거의 없던 라운드는 성공률과 상관없이 내리지 않는다', () => {
+  const done = run(initialState('protect'), 7, 3.2);
+  for (let level = 2; level <= MAX_LEVEL; level++) assert.notEqual(summarizeRound(done, level, T).decision, 'down');
+  const quiet = { ...failedWith(0), voicedTime: 0 }; // 성공률 0%여도 판정 미룸이 먼저다
+  assert.equal(summarizeRound(quiet, 5, T).decision, 'deferred');
 });
 
 test('소리를 거의 내지 않으면 라운드를 세지 않는다', () => {

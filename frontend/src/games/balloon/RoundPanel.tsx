@@ -35,6 +35,7 @@ function levelText(level: number, maxPhonationTimeS?: number | null): LevelLabel
 const REASON_KO: Record<string, string> = {
   "We couldn't hear you well, so this one wasn't counted": '소리가 잘 들리지 않아 이번 라운드는 세지 않았어요',
   'Try this level once more': '이 단계를 한 번 더 해 봐요',
+  "Let's try one level easier": '한 단계 쉬운 곳에서 다시 해 봐요',
   'Goal reached - moving up a level': '목표 달성! 한 단계 올라가요',
   'Goal reached. This is the highest level': '목표 달성! 가장 높은 단계예요',
 };
