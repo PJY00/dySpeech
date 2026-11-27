@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { MemoryStore } from '../../session/store';
-import { completedAreas, dayKey, PASS_SUCCESS_RATE_PCT, passRateFor, roundPassed, summarizeRun, TodayBook } from '../progress';
+import { completedAreas, dayKey, PASS_SUCCESS_RATE_PCT, passRateFor, reportsPassed, roundPassed, summarizeRun, TodayBook } from '../progress';
 import type { RoundSummary } from '../progress';
 
 const round = (area: RoundSummary['area'], success_rate_pct: number, decision: RoundSummary['decision'] = 'hold'): RoundSummary => ({
@@ -26,10 +26,10 @@ test('게임별 통과 기준: 풍선·촛불은 목표를 끝까지 채워야(1
   assert.equal(roundPassed({ game: 'candle', success_rate_pct: 100, decision: 'hold' }), true);
 });
 
-test('게임이 result.passed를 주면 성공률 대신 그 값으로 통과를 본다(우주선: 길 안 70%여도 통과, 85%여도 미통과)', () => {
-  const run = (success: number, passed: boolean) => ({
+test('게임이 result.passed를 주면 그 값으로, 우주선·롤러코스터는 성공률(길 안 %)로 통과를 본다', () => {
+  const run = (success: number, passed: boolean, game = 'spaceship') => ({
     game_run_id: '6ecdaf48-7b9a-4fbc-936c-ba4b8e7fcd5a',
-    game: 'spaceship',
+    game,
     level: 2,
     round_index: 1,
     started_at: '2026-11-14T00:00:00Z',
@@ -37,8 +37,12 @@ test('게임이 result.passed를 주면 성공률 대신 그 값으로 통과를
     decision: 'hold' as const,
     result: { passed },
   });
-  assert.equal(roundPassed(summarizeRun(run(70, true), 'intonation')), true);
-  assert.equal(roundPassed(summarizeRun(run(85, false), 'intonation')), false);
+  assert.equal(roundPassed(summarizeRun(run(92, false), 'intonation')), true);
+  assert.equal(roundPassed(summarizeRun(run(92, false, 'roller_coaster'), 'intonation')), true);
+  assert.equal(roundPassed(summarizeRun(run(70, true), 'intonation')), false);
+  assert.equal(reportsPassed(run(92, false)), false);
+  assert.equal(roundPassed(summarizeRun(run(90, true, 'balloon'), 'breath')), true);
+  assert.equal(reportsPassed(run(90, true, 'balloon')), true);
   const noFlag = summarizeRun({ ...run(85, true), game: 'guide_reading', result: { sentences: [] } }, 'rate');
   assert.equal(noFlag.passed, undefined);
   assert.equal(roundPassed(noFlag), true);

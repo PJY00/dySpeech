@@ -58,7 +58,7 @@ export interface SpaceshipResultDetail {
 const MIN_COVERAGE = 0.5;
 const PASS_RMSE_RATIO = 0.85;
 const PASS_RMSE_FLOOR_ST = 0.5;
-const UP_LANE_RATIO = 0.7;
+const UP_LANE_RATIO = 0.8;
 const DOWN_LANE_RATIO = 0.35;
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
@@ -111,17 +111,20 @@ export function computeGameRun(
   if (coverage < MIN_COVERAGE) {
     decision = 'deferred';
     reason = `Voice heard ${Math.round(coverage * 100)}% of the time (under 50%), so no decision`;
-  } else if (passed && onLane >= UP_LANE_RATIO && level < MAX_LEVEL) {
+  } else if (onLane >= UP_LANE_RATIO && level < MAX_LEVEL) {
     decision = 'up';
-    reason = `Passed, ${Math.round(onLane * 100)}% in the lane (70% or more)`;
-  } else if (!passed && onLane < DOWN_LANE_RATIO && level > 1) {
+    reason = `${Math.round(onLane * 100)}% in the lane (80% or more)`;
+  } else if (onLane < DOWN_LANE_RATIO && level > 1) {
     decision = 'down';
-    reason = `Not passed, ${Math.round(onLane * 100)}% in the lane (under 35%)`;
+    reason = `${Math.round(onLane * 100)}% in the lane (under 35%)`;
   } else {
     decision = 'hold';
-    reason = passed
-      ? level >= MAX_LEVEL ? 'Passed, at the top level' : `Passed, ${Math.round(onLane * 100)}% in the lane (under 70%)`
-      : level <= 1 ? 'Not passed, at the first level' : `Not passed, ${Math.round(onLane * 100)}% in the lane`;
+    reason =
+      onLane >= UP_LANE_RATIO
+        ? `${Math.round(onLane * 100)}% in the lane, at the top level`
+        : onLane < DOWN_LANE_RATIO
+          ? `${Math.round(onLane * 100)}% in the lane, at the first level`
+          : `${Math.round(onLane * 100)}% in the lane (35% to 80%)`;
   }
 
   return {

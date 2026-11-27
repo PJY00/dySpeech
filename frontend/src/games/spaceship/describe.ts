@@ -4,7 +4,7 @@ import { L } from '../../i18n/lang';
 import type { GameRun } from '../../session/types';
 
 interface LaneRunView {
-  result?: { passed?: boolean; voiced_coverage_pct?: number; stars_collected?: number; stars_total?: number };
+  result?: { voiced_coverage_pct?: number; curve_rmse_semitones?: number | null; stars_collected?: number; stars_total?: number };
 }
 
 /** 길 따라가기 게임 공통. item은 모으는 것의 이름 [한국어, 영어] */
@@ -16,10 +16,15 @@ export function describeLaneRun(run: GameRun, item: [string, string]): string | 
     return L(`목소리가 들린 시간이 ${cov}%라 판정하지 않았어요`, `Voice heard ${cov}% of the time, so no decision`);
   }
   const lane = Math.round(run.success_rate_pct);
-  const head = result.passed ? L(`곡선 통과 · 길 안 ${lane}%`, `Curve passed · ${lane}% in the lane`) : L(`곡선 미통과 · 길 안 ${lane}%`, `Curve not passed · ${lane}% in the lane`);
+  const head = L(`길 안 ${lane}%`, `${lane}% in the lane`);
+  const rmse = result.curve_rmse_semitones;
+  const curve =
+    typeof rmse === 'number' && Number.isFinite(rmse)
+      ? ` · ${L(`곡선 오차 ${rmse.toFixed(1)}반음`, `curve error ${rmse.toFixed(1)} st`)}`
+      : '';
   const items =
     result.stars_collected !== undefined && result.stars_total ? ` · ${L(...item)} ${result.stars_collected}/${result.stars_total}` : '';
-  return head + items;
+  return head + curve + items;
 }
 
 export function describeSpaceshipRun(run: GameRun): string | null {

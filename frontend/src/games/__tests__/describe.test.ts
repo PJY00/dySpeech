@@ -33,9 +33,11 @@ test('판정 한 줄은 서버로 가는 문구와 상관없이 화면 언어로
   assert.deepEqual(both(() => describeBalloonRun(balloon)), ['가장 오래 유지 2.1초 / 목표 1.9초', 'Longest hold 2.1 s / goal 1.9 s']);
 
   const ship = { ...base, game: 'spaceship' as const, success_rate_pct: 72.4, result: { passed: true, voiced_coverage_pct: 90, stars_collected: 5, stars_total: 6 } };
-  assert.deepEqual(both(() => describeSpaceshipRun(ship)), ['곡선 통과 · 길 안 72% · 별 5/6', 'Curve passed · 72% in the lane · stars 5/6']);
+  assert.deepEqual(both(() => describeSpaceshipRun(ship)), ['길 안 72% · 별 5/6', '72% in the lane · stars 5/6']);
   const coaster = { ...ship, game: 'roller_coaster' as const, result: { ...ship.result, passed: false } };
-  assert.deepEqual(both(() => describeRollerCoasterRun(coaster)), ['곡선 미통과 · 길 안 72% · 코인 5/6', 'Curve not passed · 72% in the lane · coins 5/6']);
+  assert.deepEqual(both(() => describeRollerCoasterRun(coaster)), ['길 안 72% · 코인 5/6', '72% in the lane · coins 5/6']);
+  const curved = { ...ship, result: { ...ship.result, passed: false, curve_rmse_semitones: 0.94 } };
+  assert.deepEqual(both(() => describeSpaceshipRun(curved)), ['길 안 72% · 곡선 오차 0.9반음 · 별 5/6', '72% in the lane · curve error 0.9 st · stars 5/6']);
 
   const reading = {
     ...base,
